@@ -1,0 +1,5 @@
+# Datos locales: mails, notas, borradores y la contraseña y las API keys cifradas. Nunca subirlos.
+datos/
+
+__pycache__/
+*.pyc

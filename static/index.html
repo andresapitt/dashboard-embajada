@@ -1,0 +1,825 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Respuestas de mails</title>
+<style>
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --borde: #dfe2e7; --texto: #1d2330; --suave: #626b7a;
+  --acento: #2f5fa7; --acento-suave: #e6eef9; --ok: #2e7d4f; --ok-suave: #e3f3e9;
+  --aviso: #9a6200; --aviso-suave: #fdf1dc; --peligro: #b3261e; --sombra: 0 1px 2px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15181d; --panel: #1e222a; --borde: #333a45; --texto: #e6e9ee; --suave: #9aa3b2;
+    --acento: #7aa7ec; --acento-suave: #24334a; --ok: #6cc18f; --ok-suave: #1f3529;
+    --aviso: #e2b25c; --aviso-suave: #3a2f1a; --peligro: #ef8a82; --sombra: none;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 14px/1.45 "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--texto); }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; border: 1px solid var(--borde); background: var(--panel); border-radius: 6px; padding: 6px 12px; }
+button:hover { border-color: var(--acento); }
+button.primario { background: var(--acento); border-color: var(--acento); color: #fff; }
+@media (prefers-color-scheme: dark) { button.primario { color: #10151d; } }
+button.peligro { color: var(--peligro); }
+button.chico { padding: 3px 8px; font-size: 12.5px; }
+button:disabled { opacity: .55; cursor: default; }
+input[type=text], input[type=password], input[type=number], input[type=search], textarea, select {
+  width: 100%; border: 1px solid var(--borde); border-radius: 6px; padding: 7px 9px; background: var(--panel);
+}
+textarea { resize: vertical; }
+input:focus, textarea:focus, select:focus { outline: 2px solid var(--acento-suave); border-color: var(--acento); }
+label { display: block; font-weight: 600; margin: 12px 0 4px; }
+.ayuda { color: var(--suave); font-size: 12.5px; font-weight: normal; }
+
+header { display: flex; align-items: center; gap: 18px; padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--borde); position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 16px; margin: 0; white-space: nowrap; }
+nav { display: flex; gap: 4px; }
+nav button { border: none; background: none; padding: 6px 12px; border-radius: 6px; color: var(--suave); }
+nav button.activo { background: var(--acento-suave); color: var(--acento); font-weight: 600; }
+header .derecha { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+.vista { display: none; }
+.vista.activa { display: block; }
+
+/* Bandeja */
+#vista-bandeja.activa { display: grid; grid-template-columns: 340px 1fr; height: calc(100vh - 53px); }
+.lista { border-right: 1px solid var(--borde); display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
+.lista .controles { padding: 12px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--borde); }
+.filtros { display: flex; flex-wrap: wrap; gap: 4px; }
+.filtros button { padding: 3px 9px; font-size: 12.5px; border-radius: 99px; }
+.filtros button.activo { background: var(--acento); color: #fff; border-color: var(--acento); }
+@media (prefers-color-scheme: dark) { .filtros button.activo { color: #10151d; } }
+.items { overflow-y: auto; flex: 1; }
+.item { padding: 10px 12px; border-bottom: 1px solid var(--borde); cursor: pointer; }
+.item:hover { background: var(--bg); }
+.item.sel { background: var(--acento-suave); }
+.item .fila { display: flex; justify-content: space-between; gap: 8px; }
+.item .de { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .fecha { color: var(--suave); font-size: 12px; white-space: nowrap; }
+.item .asunto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .extracto { color: var(--suave); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.etiqueta { display: inline-block; font-size: 11.5px; padding: 1px 7px; border-radius: 99px; background: var(--bg); color: var(--suave); border: 1px solid var(--borde); white-space: nowrap; }
+.etiqueta.nuevo { background: var(--acento-suave); color: var(--acento); border-color: transparent; }
+.etiqueta.pedido { background: var(--aviso-suave); color: var(--aviso); border-color: transparent; }
+.etiqueta.borrador { background: var(--aviso-suave); color: var(--aviso); border-color: transparent; }
+.etiqueta.respondido { background: var(--ok-suave); color: var(--ok); border-color: transparent; }
+
+.detalle { overflow-y: auto; padding: 18px; min-width: 0; }
+.vacio { color: var(--suave); text-align: center; margin-top: 18vh; }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+.tarjeta { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; padding: 14px; margin-bottom: 14px; box-shadow: var(--sombra); }
+.tarjeta h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--suave); display: flex; justify-content: space-between; align-items: center; }
+.cabecera h2 { margin: 0 0 4px; font-size: 18px; }
+.cabecera .meta { color: var(--suave); }
+.acciones { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cuerpo-mail { white-space: pre-wrap; word-wrap: break-word; max-height: 360px; overflow-y: auto; font-size: 13.5px; }
+#editor { min-height: 300px; font-size: 14px; line-height: 1.5; }
+.estado-guardado { color: var(--suave); font-size: 12px; margin-left: auto; }
+.aviso { background: var(--aviso-suave); color: var(--aviso); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; font-size: 13px; }
+.aviso code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; }
+.sug { border: 1px solid var(--borde); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+.sug .preg { font-weight: 600; }
+.sug .resp { white-space: pre-wrap; color: var(--suave); font-size: 12.5px; max-height: 4.5em; overflow: hidden; margin: 4px 0 6px; }
+.sug.abierta .resp { max-height: none; }
+.sug.usada { border-color: var(--ok); }
+.metricas { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.metrica { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; padding: 10px 14px; }
+.metrica .valor { font-size: 22px; font-weight: 600; }
+.metrica .ayuda { display: block; }
+.ejemplo { border-top: 1px solid var(--borde); padding: 8px 0; }
+.ejemplo:first-child { border-top: none; }
+.ejemplo .fila { display: flex; gap: 10px; align-items: center; }
+.ejemplo .asunto { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ejemplo pre { white-space: pre-wrap; font: inherit; font-size: 12.5px; color: var(--suave); margin: 6px 0 0; max-height: 260px; overflow-y: auto; }
+.ejemplo.apagado .asunto { color: var(--suave); text-decoration: line-through; }
+.prov { border: 1px solid var(--borde); border-radius: 8px; padding: 4px 12px 8px; margin-top: 12px; opacity: .75; }
+.prov.activo { border-color: var(--acento); opacity: 1; }
+.prov-titulo { font-weight: 600; margin-top: 8px; }
+.prov .prov-activo { display: none; margin-left: 6px; }
+.prov.activo .prov-activo { display: inline-block; }
+.analisis { background: var(--bg); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; font-size: 13px; }
+.analisis .etiqueta { margin-left: 4px; }
+.nota { border-left: 3px solid var(--acento); padding: 4px 8px; margin-bottom: 8px; white-space: pre-wrap; }
+.nota .cuando { color: var(--suave); font-size: 11.5px; display: flex; justify-content: space-between; }
+
+/* FAQ */
+.contenedor { max-width: 1000px; margin: 0 auto; padding: 20px 18px; }
+.barra { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.barra input[type=search] { flex: 1; min-width: 200px; }
+.faq { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
+.faq .preg { font-weight: 600; display: flex; justify-content: space-between; gap: 10px; }
+.faq .resp { white-space: pre-wrap; margin-top: 6px; color: var(--suave); }
+.faq .pie { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+
+/* Modal y avisos */
+dialog { border: 1px solid var(--borde); border-radius: 10px; padding: 0; width: min(720px, 94vw); background: var(--panel); color: var(--texto); }
+dialog::backdrop { background: rgba(0,0,0,.35); }
+dialog form { padding: 18px; }
+dialog h2 { margin: 0 0 6px; font-size: 17px; }
+dialog .botones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+#toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--texto); color: var(--bg); padding: 9px 16px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; max-width: 90vw; }
+#toast.ver { opacity: 1; }
+#toast.error { background: var(--peligro); color: #fff; }
+
+@media (max-width: 1100px) { .cols { grid-template-columns: 1fr; } }
+@media (max-width: 760px) {
+  #vista-bandeja.activa { grid-template-columns: minmax(0, 1fr); height: auto; }
+  nav { flex-wrap: wrap; }
+  .lista { max-height: 45vh; border-right: none; border-bottom: 1px solid var(--borde); }
+  header { flex-wrap: wrap; gap: 8px; padding: 10px 16px; }
+  .detalle, .contenedor { padding: 16px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Respuestas de mails</h1>
+  <span id="demo" class="etiqueta pedido" hidden title="Datos ficticios para probar. Tus datos reales están en iniciar.bat">MODO EJEMPLO · datos ficticios</span>
+  <nav>
+    <button data-vista="bandeja" class="activo">Bandeja</button>
+    <button data-vista="faq">Preguntas frecuentes <span id="n-faq" class="etiqueta">0</span></button>
+    <button data-vista="aprendizaje">Aprendizaje</button>
+    <button data-vista="config">Configuración</button>
+  </nav>
+  <div class="derecha">
+    <button id="btn-sync" class="primario" title="Trae los mails nuevos de la bandeja (solo lectura)">Traer mails</button>
+  </div>
+</header>
+
+<!-- ======================= BANDEJA ======================= -->
+<section id="vista-bandeja" class="vista activa">
+  <aside class="lista">
+    <div class="controles">
+      <div class="filtros" id="filtros"></div>
+      <div style="display:flex; gap:6px">
+        <input type="search" id="buscar-mail" placeholder="Buscar por asunto, remitente o texto…">
+        <button id="btn-pegar" title="Cargar un mail copiando y pegando su texto">+ Pegar</button>
+      </div>
+    </div>
+    <div class="items" id="items"></div>
+  </aside>
+  <main class="detalle" id="detalle">
+    <p class="vacio">Elegí un mail de la lista.</p>
+  </main>
+</section>
+
+<!-- ======================= FAQ ======================= -->
+<section id="vista-faq" class="vista">
+  <div class="contenedor">
+    <div class="barra">
+      <input type="search" id="buscar-faq" placeholder="Buscar pregunta o respuesta…">
+      <button class="primario" id="btn-nueva-faq">+ Nueva</button>
+      <button id="btn-importar">Importar CSV</button>
+      <a href="/api/faq/exportar"><button type="button">Exportar CSV</button></a>
+      <input type="file" id="archivo-csv" accept=".csv,.txt" hidden>
+    </div>
+    <div id="lista-faq"></div>
+  </div>
+</section>
+
+<!-- ======================= APRENDIZAJE ======================= -->
+<section id="vista-aprendizaje" class="vista">
+  <div class="contenedor">
+    <p class="ayuda" style="margin-top:0">Cada vez que marcás un mail como <b>respondido</b>, el dashboard guarda la respuesta que enviaste.
+      La IA usa esas respuestas como ejemplo para consultas parecidas, y cada vez que corregís varios borradores analiza
+      qué cambiaste y actualiza las <b>preferencias</b> de abajo.</p>
+    <div class="metricas" id="ap-metricas"></div>
+
+    <div class="tarjeta">
+      <h3>Preferencias aprendidas <span class="ayuda" id="ap-fecha"></span></h3>
+      <p class="ayuda" style="margin-top:0">Una regla por línea. La IA las sigue siempre al redactar. Podés editarlas, borrar las que no te sirvan o agregar las tuyas.</p>
+      <div class="aviso" id="ap-resumen" hidden></div>
+      <textarea id="ap-preferencias" rows="10" placeholder="Todavía no hay preferencias. Se generan solas después de que corrijas y marques como respondidos algunos borradores de la IA."></textarea>
+      <div class="acciones" style="margin-top:8px">
+        <button class="primario" id="ap-guardar">Guardar preferencias</button>
+        <button id="ap-analizar">Analizar mis correcciones ahora</button>
+        <label style="font-weight:normal; margin:0 0 0 auto"><input type="checkbox" id="ap-auto"> Aprender automáticamente</label>
+      </div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>Plantillas que más corregís</h3>
+      <p class="ayuda" style="margin-top:0">Si una plantilla siempre necesita muchos cambios, conviene actualizarla en Preguntas frecuentes.</p>
+      <div id="ap-plantillas"></div>
+    </div>
+
+    <div class="tarjeta">
+      <h3>Respuestas aprendidas</h3>
+      <p class="ayuda" style="margin-top:0">Destildá las que no quieras que se usen como ejemplo (por ejemplo, un caso muy particular).</p>
+      <div id="ap-ejemplos"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= CONFIG ======================= -->
+<section id="vista-config" class="vista">
+  <div class="contenedor" style="max-width:680px">
+    <form id="form-config" class="tarjeta" autocomplete="off">
+      <h3>Conexión al correo (solo lectura)</h3>
+      <p class="ayuda">El dashboard solo <b>lee</b> la bandeja: no envía, no borra y no marca los mails como leídos.
+        La contraseña queda cifrada en esta PC con tu usuario de Windows.</p>
+      <label>Forma de conexión</label>
+      <select name="correo_metodo" id="sel-metodo">
+        <option value="rest">Webmail Zimbra (HTTPS): recomendado</option>
+        <option value="imap">IMAP</option>
+      </select>
+      <label>Servidor <span class="ayuda">(sin https://, ej. correo.mrecic.gov.ar)</span></label>
+      <input type="text" name="imap_host">
+      <div id="campo-puerto">
+        <label>Puerto IMAP <span class="ayuda">(normalmente 993)</span></label>
+        <input type="number" name="imap_puerto">
+      </div>
+      <label>Usuario <span class="ayuda">(tu dirección de correo o usuario de Zimbra)</span></label>
+      <input type="text" name="imap_usuario">
+      <label>Contraseña <span class="ayuda" id="pw-ayuda"></span></label>
+      <input type="password" name="imap_password" autocomplete="new-password">
+      <label>Carpeta</label>
+      <input type="text" name="imap_carpeta">
+      <label>Traer mails de los últimos (días)</label>
+      <input type="number" name="imap_dias" min="1" max="365">
+      <label style="font-weight:normal"><input type="checkbox" name="imap_verificar_ssl"> Verificar el certificado SSL del servidor
+        <span class="ayuda">(destildalo solo si da error de certificado)</span></label>
+
+      <h3 style="margin-top:22px">Inteligencia artificial</h3>
+      <p class="ayuda">La IA elige la plantilla más adecuada de tu base y la adapta a cada mail (nombre, fechas, detalles).
+        Para hacerlo, el texto del mail y tus plantillas se envían al proveedor elegido.</p>
+      <label>Proveedor que se usa para redactar</label>
+      <select name="ia_proveedor" id="sel-prov">
+        <option value="1min">1min.ai</option>
+        <option value="gemini">Google Gemini</option>
+      </select>
+      <div class="prov" data-prov="1min">
+        <div class="prov-titulo">1min.ai <span class="etiqueta respondido prov-activo">en uso</span></div>
+        <label>API key de 1min.ai <span class="ayuda" data-key-ayuda></span></label>
+        <input type="password" name="ia_key" autocomplete="new-password">
+        <label>Modelo</label>
+        <div style="display:flex; gap:6px">
+          <select name="ia_modelo" data-sel-modelo></select>
+          <button type="button" data-btn-modelos title="Descargar la lista de modelos de tu cuenta">Actualizar lista</button>
+        </div>
+        <p class="ayuda" data-modelos-ayuda></p>
+      </div>
+      <div class="prov" data-prov="gemini">
+        <div class="prov-titulo">Google Gemini <span class="etiqueta respondido prov-activo">en uso</span></div>
+        <label>API key de Gemini <span class="ayuda" data-key-ayuda></span></label>
+        <input type="password" name="gemini_key" autocomplete="new-password">
+        <label>Modelo</label>
+        <div style="display:flex; gap:6px">
+          <select name="gemini_modelo" data-sel-modelo></select>
+          <button type="button" data-btn-modelos title="Descargar la lista de modelos de tu cuenta">Actualizar lista</button>
+        </div>
+        <p class="ayuda" data-modelos-ayuda></p>
+      </div>
+      <label style="font-weight:normal"><input type="checkbox" name="ia_auto"> Redactar automáticamente con IA los mails nuevos al traerlos</label>
+
+      <h3 style="margin-top:22px">Estilo de las respuestas</h3>
+      <label>Firma <span class="ayuda">(se agrega al final de los borradores)</span></label>
+      <textarea name="firma" rows="4"></textarea>
+      <label>Tono e instrucciones generales para Claude</label>
+      <textarea name="tono" rows="4"></textarea>
+      <div class="botones" style="display:flex; gap:8px; margin-top:16px">
+        <button class="primario" type="submit">Guardar</button>
+        <button type="button" id="btn-probar">Guardar y traer mails</button>
+      </div>
+    </form>
+  </div>
+</section>
+
+<!-- ======================= MODALES ======================= -->
+<dialog id="modal-pegar">
+  <form method="dialog" id="form-pegar">
+    <h2>Pegar un mail</h2>
+    <p class="ayuda">Para mails que no llegan por IMAP: copiá el texto del mail y pegalo acá.</p>
+    <label>Remitente</label>
+    <div style="display:flex; gap:8px">
+      <input type="text" name="remitente" placeholder="Nombre">
+      <input type="text" name="remitente_email" placeholder="correo@ejemplo.com">
+    </div>
+    <label>Asunto</label>
+    <input type="text" name="asunto">
+    <label>Texto del mail</label>
+    <textarea name="cuerpo" rows="10" required></textarea>
+    <div class="botones">
+      <button value="cancelar" formnovalidate>Cancelar</button>
+      <button class="primario" value="ok">Agregar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="modal-faq">
+  <form method="dialog" id="form-faq">
+    <h2 id="faq-titulo">Nueva pregunta frecuente</h2>
+    <label>Pregunta <span class="ayuda">(cómo suelen preguntarlo los clientes)</span></label>
+    <textarea name="pregunta" rows="2" required></textarea>
+    <label>Respuesta base</label>
+    <textarea name="respuesta" rows="10" required></textarea>
+    <label>Categoría <span class="ayuda">(opcional, ej. Visas, Pasaportes, Legalizaciones)</span></label>
+    <input type="text" name="categoria" list="categorias">
+    <datalist id="categorias"></datalist>
+    <div class="botones">
+      <button value="cancelar" formnovalidate>Cancelar</button>
+      <button class="primario" value="ok">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+const NOMBRES = { nuevo: "Nuevos", pedido: "Pedidos a Claude", borrador: "Con borrador", respondido: "Respondidos", archivado: "Archivados", todos: "Todos" };
+const ETIQ = { nuevo: "Nuevo", pedido: "Pedido a Claude", borrador: "Borrador", respondido: "Respondido", archivado: "Archivado" };
+const st = { vista: "bandeja", filtro: "", busqueda: "", mailId: null, detalle: null, faqIds: [], faqs: [], guardando: null, editFaqId: null };
+const $ = s => document.querySelector(s);
+
+async function api(metodo, ruta, cuerpo, crudo) {
+  const op = { method: metodo, headers: {} };
+  if (cuerpo !== undefined) {
+    op.body = crudo ? cuerpo : JSON.stringify(cuerpo);
+    op.headers["Content-Type"] = crudo ? "application/octet-stream" : "application/json";
+  }
+  const r = await fetch(ruta, op);
+  const datos = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(datos.error || `Error ${r.status}`);
+  return datos;
+}
+
+function toast(msg, error) {
+  const t = $("#toast");
+  t.textContent = msg; t.className = "ver" + (error ? " error" : "");
+  clearTimeout(t._t); t._t = setTimeout(() => t.className = "", error ? 6000 : 2500);
+}
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function fecha(iso, corta) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  const hoy = new Date().toDateString() === d.toDateString();
+  if (corta && hoy) return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString("es-AR", { day: "2-digit", month: "short", ...(corta ? {} : { year: "numeric", hour: "2-digit", minute: "2-digit" }) });
+}
+async function copiar(texto) {
+  try { await navigator.clipboard.writeText(texto); }
+  catch { const t = document.createElement("textarea"); t.value = texto; document.body.append(t); t.select(); document.execCommand("copy"); t.remove(); }
+}
+
+/* ---------------- navegación ---------------- */
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => irA(b.dataset.vista));
+function irA(vista) {
+  st.vista = vista;
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("activo", b.dataset.vista === vista));
+  document.querySelectorAll(".vista").forEach(v => v.classList.toggle("activa", v.id === "vista-" + vista));
+  if (vista === "faq") cargarFaqs();
+  if (vista === "config") cargarConfig();
+  if (vista === "aprendizaje") cargarAprendizaje();
+  if (vista === "bandeja") cargarLista();
+}
+
+/* ---------------- bandeja ---------------- */
+async function cargarEstado() {
+  const e = await api("GET", "/api/estado");
+  $("#n-faq").textContent = e.faqs;
+  $("#demo").hidden = !e.demo;
+  const filtros = [["", "Pendientes"], ["nuevo"], ["pedido"], ["borrador"], ["respondido"], ["archivado"], ["todos"]];
+  const pend = e.conteo.nuevo + e.conteo.pedido + e.conteo.borrador;
+  $("#filtros").innerHTML = filtros.map(([k, n]) => {
+    const c = k === "" ? pend : k === "todos" ? "" : e.conteo[k];
+    return `<button data-f="${k}" class="${st.filtro === k ? "activo" : ""}">${n || NOMBRES[k]}${c !== "" ? ` (${c})` : ""}</button>`;
+  }).join("");
+  $("#filtros").querySelectorAll("button").forEach(b => b.onclick = () => { st.filtro = b.dataset.f; cargarEstado(); cargarLista(); });
+}
+
+async function cargarLista() {
+  const p = new URLSearchParams({ estado: st.filtro, q: st.busqueda });
+  const mails = await api("GET", "/api/mails?" + p);
+  $("#items").innerHTML = mails.length ? mails.map(m => `
+    <div class="item ${m.id === st.mailId ? "sel" : ""}" data-id="${m.id}">
+      <div class="fila"><span class="de">${esc(m.remitente || m.remitente_email || "(sin remitente)")}</span><span class="fecha">${fecha(m.fecha, true)}</span></div>
+      <div class="asunto">${esc(m.asunto)}</div>
+      <div class="fila"><span class="extracto">${esc(m.extracto)}</span>
+        <span>${m.notas ? `<span class="etiqueta" title="Notas">✎ ${m.notas}</span> ` : ""}<span class="etiqueta ${m.estado}">${ETIQ[m.estado]}</span></span></div>
+    </div>`).join("") : `<p class="vacio" style="margin-top:40px">No hay mails acá.</p>`;
+  $("#items").querySelectorAll(".item").forEach(el => el.onclick = () => abrirMail(+el.dataset.id));
+}
+
+let tBusq;
+$("#buscar-mail").oninput = e => { clearTimeout(tBusq); tBusq = setTimeout(() => { st.busqueda = e.target.value; cargarLista(); }, 250); };
+
+async function abrirMail(id) {
+  await guardarYa();
+  st.mailId = id;
+  document.querySelectorAll(".item").forEach(el => el.classList.toggle("sel", +el.dataset.id === id));
+  pintarDetalle(await api("GET", "/api/mails/" + id));
+}
+
+function pintarDetalle(d) {
+  st.detalle = d;
+  const m = d.mail;
+  st.faqIds = d.borrador ? d.borrador.faq_ids : [];
+  const AUTORES = { claude: "Borrador escrito por Claude", ia: "Redactado con IA", manual: "Editado a mano" };
+  const autor = d.borrador ? (AUTORES[d.borrador.autor] || "Editado a mano") + " · " + fecha(d.borrador.actualizado) : "";
+  const an = d.borrador?.analisis;
+  const CONF = { alta: "respondido", media: "borrador", baja: "pedido" };
+  const analisisHtml = an ? `<div class="analisis">
+      <div><b>Plantilla elegida:</b> ${an.faq_pregunta ? esc(an.faq_pregunta) : "<i>ninguna aplica</i>"}
+        ${an.confianza ? `<span class="etiqueta ${CONF[an.confianza] || ""}">confianza ${esc(an.confianza)}</span>` : ""}
+        <span class="ayuda">· ${an.idioma ? esc(an.idioma) + " · " : ""}${esc(an.modelo)}</span>
+        ${an.ejemplos_usados || an.preferencias_usadas ? `<span class="ayuda" title="Lo que aprendió de tus respuestas anteriores">· usó ${an.ejemplos_usados || 0} ejemplo(s) tuyo(s) y ${an.preferencias_usadas || 0} preferencia(s)</span>` : ""}</div>
+      ${an.motivo ? `<div class="ayuda">${esc(an.motivo)}</div>` : ""}
+      ${an.pendientes?.length ? `<div class="aviso" style="margin:6px 0 0">Revisar antes de enviar: ${an.pendientes.map(esc).join(" · ")}</div>` : ""}
+    </div>` : "";
+  $("#detalle").innerHTML = `
+  <div class="cols">
+    <div>
+      <div class="tarjeta cabecera">
+        <div class="fila" style="display:flex; justify-content:space-between; gap:10px; align-items:start">
+          <div><h2>${esc(m.asunto)}</h2>
+            <div class="meta">${esc(m.remitente)} ${m.remitente_email ? "&lt;" + esc(m.remitente_email) + "&gt;" : ""} · ${fecha(m.fecha)}</div></div>
+          <span class="etiqueta ${m.estado}">${ETIQ[m.estado]}</span>
+        </div>
+        <details style="margin-top:10px" ${m.estado !== "respondido" ? "open" : ""}>
+          <summary style="cursor:pointer; color:var(--suave)">Mensaje del cliente</summary>
+          <div class="cuerpo-mail" style="margin-top:8px">${esc(m.cuerpo)}</div>
+        </details>
+      </div>
+
+      <div class="tarjeta">
+        <h3>Respuesta <span class="estado-guardado" id="guardado">${esc(autor)}</span></h3>
+        ${analisisHtml}
+        ${m.estado === "pedido" ? `<div class="aviso">Pedido a Claude. Abrí Claude Code en la carpeta del dashboard y decile: <code>redactá los borradores pendientes</code>. Después tocá <b>Recargar</b>.</div>` : ""}
+        <textarea id="editor" placeholder="Escribí la respuesta, insertá una respuesta sugerida o pedile un borrador a Claude…">${esc(d.borrador ? d.borrador.texto : "")}</textarea>
+        <div class="acciones" style="margin-top:10px">
+          <button class="primario" id="btn-copiar">Copiar</button>
+          <button id="btn-copiar-resp">Copiar y marcar respondido</button>
+          <button id="btn-a-faq" title="Guardar esta respuesta en la base de preguntas frecuentes">Guardar como pregunta frecuente</button>
+          <button id="btn-recargar" title="Recargar si Claude escribió un borrador">Recargar</button>
+        </div>
+      </div>
+
+      <div class="tarjeta">
+        <h3>Redactar con IA</h3>
+        <textarea id="instruccion" rows="2" placeholder="Opcional: indicaciones para este caso (ej. 'mencionar que el turno se pide por la web', 'es una urgencia')">${esc(m.instruccion)}</textarea>
+        <div class="acciones" style="margin-top:8px">
+          <button class="primario" id="btn-ia">${d.borrador?.autor === "ia" ? "Volver a redactar con IA" : "Redactar con IA"}</button>
+          <button class="chico" id="btn-pedir" title="Dejarlo marcado para que Claude Code lo redacte">${m.estado === "pedido" ? "Actualizar pedido a Claude Code" : "Pedir a Claude Code"}</button>
+          ${m.estado === "pedido" ? `<button id="btn-cancelar-pedido" class="chico">Cancelar pedido</button>` : ""}
+        </div>
+      </div>
+
+      <div class="acciones">
+        <span class="ayuda">Estado:</span>
+        ${["nuevo", "borrador", "respondido", "archivado"].filter(e => e !== m.estado).map(e => `<button class="chico" data-estado="${e}">Marcar ${ETIQ[e].toLowerCase()}</button>`).join("")}
+        <button class="chico peligro" id="btn-borrar" style="margin-left:auto">Quitar del dashboard</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="tarjeta">
+        <h3>Respuestas sugeridas</h3>
+        <input type="search" id="buscar-sug" placeholder="Buscar otra respuesta…" style="margin-bottom:10px">
+        <div id="sugerencias"></div>
+      </div>
+      <div class="tarjeta">
+        <h3>Notas</h3>
+        <div id="notas">${d.notas.map(n => `
+          <div class="nota"><div class="cuando"><span>${fecha(n.creado)}</span><a href="#" data-nota="${n.id}" title="Borrar nota">✕</a></div>${esc(n.texto)}</div>`).join("") || `<p class="ayuda">Sin notas todavía.</p>`}</div>
+        <textarea id="nueva-nota" rows="2" placeholder="Agregar una nota (ej. 'pidió turno para el 12/11', 'falta que mande el DNI')"></textarea>
+        <button id="btn-nota" style="margin-top:6px">Agregar nota</button>
+      </div>
+    </div>
+  </div>`;
+
+  pintarSugerencias(d.sugerencias);
+  const ed = $("#editor");
+  ed.oninput = () => programarGuardado();
+  $("#btn-copiar").onclick = async () => { await guardarYa(); await copiar(ed.value); toast("Copiado. Pegalo en tu respuesta del correo."); };
+  $("#btn-copiar-resp").onclick = async () => { await guardarYa(); await copiar(ed.value); await cambiarEstado("respondido"); toast("Copiado y marcado como respondido."); };
+  $("#btn-a-faq").onclick = () => abrirFaq(null, { pregunta: m.asunto, respuesta: ed.value });
+  $("#btn-recargar").onclick = () => abrirMail(m.id).then(() => toast("Actualizado"));
+  $("#btn-ia").onclick = () => redactarIA();
+  $("#btn-pedir").onclick = async () => {
+    await api("PATCH", "/api/mails/" + m.id, { estado: "pedido", instruccion: $("#instruccion").value });
+    toast("Pedido registrado. Decile a Claude: «redactá los borradores pendientes»"); refrescar();
+  };
+  if ($("#btn-cancelar-pedido")) $("#btn-cancelar-pedido").onclick = () => cambiarEstado(d.borrador ? "borrador" : "nuevo");
+  document.querySelectorAll("[data-estado]").forEach(b => b.onclick = () => cambiarEstado(b.dataset.estado));
+  $("#btn-borrar").onclick = async () => {
+    if (!confirm("¿Quitar este mail del dashboard? (No se borra de tu correo.) Se pierden el borrador y las notas.")) return;
+    await api("DELETE", "/api/mails/" + m.id); st.mailId = null;
+    $("#detalle").innerHTML = `<p class="vacio">Elegí un mail de la lista.</p>`; cargarEstado(); cargarLista();
+  };
+  $("#btn-nota").onclick = async () => {
+    const t = $("#nueva-nota").value.trim(); if (!t) return;
+    await guardarYa(); pintarDetalle(await api("POST", `/api/mails/${m.id}/notas`, { texto: t })); cargarLista();
+  };
+  document.querySelectorAll("[data-nota]").forEach(a => a.onclick = async e => {
+    e.preventDefault(); if (!confirm("¿Borrar esta nota?")) return;
+    await guardarYa(); await api("DELETE", "/api/notas/" + a.dataset.nota); abrirMail(m.id); cargarLista();
+  });
+  let tS;
+  $("#buscar-sug").oninput = e => { clearTimeout(tS); tS = setTimeout(async () => {
+    const q = e.target.value.trim();
+    pintarSugerencias(q ? await api("GET", "/api/faq?q=" + encodeURIComponent(q)) : st.detalle.sugerencias);
+  }, 250); };
+}
+
+function pintarSugerencias(lista) {
+  const cont = $("#sugerencias");
+  cont.innerHTML = lista.length ? lista.map(f => `
+    <div class="sug ${st.faqIds.includes(f.id) ? "usada" : ""}" data-id="${f.id}">
+      <div class="preg">${esc(f.pregunta)}</div>
+      ${f.categoria ? `<span class="etiqueta">${esc(f.categoria)}</span>` : ""}
+      <div class="resp">${esc(f.respuesta)}</div>
+      <div class="acciones"><button class="chico primario" data-ins>Insertar</button><button class="chico" data-adaptar title="Que la IA adapte esta plantilla al mail">Adaptar con IA</button><button class="chico" data-ver>Ver todo</button><button class="chico" data-cop>Copiar</button></div>
+    </div>`).join("") : `<p class="ayuda">No encontré respuestas parecidas. Probá buscando otra palabra, o cargá preguntas frecuentes.</p>`;
+  cont.querySelectorAll(".sug").forEach(el => {
+    const f = lista.find(x => x.id === +el.dataset.id);
+    el.querySelector("[data-ver]").onclick = () => el.classList.toggle("abierta");
+    el.querySelector("[data-adaptar]").onclick = () => redactarIA(f.id);
+    el.querySelector("[data-cop]").onclick = () => copiar(f.respuesta).then(() => toast("Respuesta base copiada"));
+    el.querySelector("[data-ins]").onclick = () => {
+      const ed = $("#editor");
+      const ini = ed.selectionStart ?? ed.value.length, fin = ed.selectionEnd ?? ed.value.length;
+      ed.value = ed.value.slice(0, ini) + f.respuesta + ed.value.slice(fin);
+      ed.focus(); ed.selectionStart = ed.selectionEnd = ini + f.respuesta.length;
+      if (!st.faqIds.includes(f.id)) st.faqIds.push(f.id);
+      el.classList.add("usada");
+      programarGuardado();
+    };
+  });
+}
+
+async function redactarIA(faqId) {
+  const d = st.detalle, ed = $("#editor");
+  if (d.borrador?.autor === "manual" && ed.value.trim() && !confirm("Esto reemplaza la respuesta que escribiste a mano. ¿Seguir?")) return;
+  await guardarYa();
+  const id = d.mail.id, b = $("#btn-ia");
+  b.disabled = true; b.textContent = "Redactando…";
+  ed.disabled = true;
+  try {
+    const nuevo = await api("POST", `/api/mails/${id}/ia`, { instruccion: $("#instruccion").value, faq_id: faqId || null });
+    if (st.mailId === id) pintarDetalle(nuevo);
+    toast("Borrador listo. Revisalo antes de copiarlo.");
+    cargarEstado(); cargarLista();
+  } catch (e) {
+    toast(e.message, true);
+    if (st.mailId === id) { b.disabled = false; b.textContent = "Redactar con IA"; ed.disabled = false; }
+  }
+}
+
+// Redacta en segundo plano, uno por uno, los mails recién traídos
+async function redactarNuevos(ids) {
+  const b = $("#btn-sync");
+  for (let i = 0; i < ids.length; i++) {
+    b.textContent = `Redactando ${i + 1}/${ids.length}…`;
+    try {
+      const d = await api("POST", `/api/mails/${ids[i]}/ia`, {});
+      if (st.mailId === ids[i] && !st.guardando) pintarDetalle(d);
+    } catch (e) { toast(e.message, true); break; }
+    cargarEstado(); cargarLista();
+  }
+}
+
+function programarGuardado() {
+  $("#guardado").textContent = "Guardando…";
+  clearTimeout(st.guardando);
+  st.guardando = setTimeout(guardarYa, 700);
+}
+async function guardarYa() {
+  if (!st.guardando || !st.detalle) return;
+  clearTimeout(st.guardando); st.guardando = null;
+  const id = st.detalle.mail.id, texto = $("#editor")?.value ?? "";
+  try {
+    const d = await api("PUT", `/api/mails/${id}/borrador`, { texto, faq_ids: st.faqIds, autor: "manual" });
+    if (st.detalle && st.detalle.mail.id === id) {
+      st.detalle.borrador = d.borrador;
+      if ($("#guardado")) $("#guardado").textContent = "Guardado";
+      if (st.detalle.mail.estado !== d.mail.estado) { st.detalle.mail.estado = d.mail.estado; cargarEstado(); cargarLista(); }
+    }
+  } catch (e) { toast("No se pudo guardar: " + e.message, true); }
+}
+async function cambiarEstado(estado) {
+  await guardarYa();
+  pintarDetalle(await api("PATCH", "/api/mails/" + st.detalle.mail.id, { estado }));
+  cargarEstado(); cargarLista();
+}
+function refrescar() { cargarEstado(); cargarLista(); if (st.mailId) abrirMail(st.mailId); }
+
+$("#btn-sync").onclick = sincronizar;
+async function sincronizar() {
+  const b = $("#btn-sync"); b.disabled = true; b.textContent = "Trayendo…";
+  try {
+    const r = await api("POST", "/api/sincronizar");
+    toast(r.nuevos ? `${r.nuevos} mail(s) nuevo(s)` : "No hay mails nuevos");
+    if (st.vista !== "bandeja") irA("bandeja"); else refrescar();
+    const cfg = st.cfg || await api("GET", "/api/config");
+    const keyActiva = cfg.ia_proveedor === "gemini" ? cfg.gemini_key_guardada : cfg.ia_key_guardada;
+    if (r.ids?.length && cfg.ia_auto === "1" && keyActiva) await redactarNuevos(r.ids);
+  } catch (e) { toast(e.message, true); }
+  finally { b.disabled = false; b.textContent = "Traer mails"; }
+}
+
+$("#btn-pegar").onclick = () => { $("#form-pegar").reset(); $("#modal-pegar").showModal(); };
+$("#modal-pegar").onclose = async () => {
+  if ($("#modal-pegar").returnValue !== "ok") return;
+  const datos = Object.fromEntries(new FormData($("#form-pegar")));
+  try { const d = await api("POST", "/api/mails", datos); st.filtro = ""; await cargarEstado(); await cargarLista(); abrirMail(d.mail.id); }
+  catch (e) { toast(e.message, true); }
+};
+
+/* ---------------- FAQ ---------------- */
+async function cargarFaqs() {
+  const q = $("#buscar-faq").value.trim();
+  st.faqs = await api("GET", "/api/faq" + (q ? "?q=" + encodeURIComponent(q) : ""));
+  const cats = [...new Set(st.faqs.map(f => f.categoria).filter(Boolean))];
+  $("#categorias").innerHTML = cats.map(c => `<option value="${esc(c)}">`).join("");
+  $("#lista-faq").innerHTML = st.faqs.length ? st.faqs.map(f => `
+    <div class="faq">
+      <div class="preg"><span>${esc(f.pregunta)}</span>${f.categoria ? `<span class="etiqueta">${esc(f.categoria)}</span>` : ""}</div>
+      <div class="resp">${esc(f.respuesta)}</div>
+      <div class="pie"><span class="ayuda">Usada ${f.usos} ${f.usos === 1 ? "vez" : "veces"}</span>
+        <span style="margin-left:auto"></span>
+        <button class="chico" data-edit="${f.id}">Editar</button><button class="chico peligro" data-del="${f.id}">Borrar</button></div>
+    </div>`).join("") : `<p class="vacio">${q ? "No hay resultados." : "Todavía no hay preguntas frecuentes. Importá tu CSV o creá una nueva."}</p>`;
+  document.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => abrirFaq(st.faqs.find(f => f.id === +b.dataset.edit)));
+  document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!confirm("¿Borrar esta pregunta frecuente?")) return;
+    await api("DELETE", "/api/faq/" + b.dataset.del); cargarFaqs(); cargarEstado();
+  });
+}
+let tFaq;
+$("#buscar-faq").oninput = () => { clearTimeout(tFaq); tFaq = setTimeout(cargarFaqs, 250); };
+$("#btn-nueva-faq").onclick = () => abrirFaq(null);
+
+function abrirFaq(faq, inicial) {
+  st.editFaqId = faq ? faq.id : null;
+  const f = $("#form-faq"); f.reset();
+  const datos = faq || inicial || {};
+  f.pregunta.value = datos.pregunta || ""; f.respuesta.value = datos.respuesta || ""; f.categoria.value = datos.categoria || "";
+  $("#faq-titulo").textContent = faq ? "Editar pregunta frecuente" : "Nueva pregunta frecuente";
+  $("#modal-faq").showModal();
+}
+$("#modal-faq").onclose = async () => {
+  if ($("#modal-faq").returnValue !== "ok") return;
+  const datos = Object.fromEntries(new FormData($("#form-faq")));
+  try {
+    if (st.editFaqId) await api("PUT", "/api/faq/" + st.editFaqId, datos);
+    else await api("POST", "/api/faq", datos);
+    toast("Pregunta frecuente guardada");
+    cargarEstado();
+    if (st.vista === "faq") cargarFaqs();
+  } catch (e) { toast(e.message, true); }
+};
+
+$("#btn-importar").onclick = () => $("#archivo-csv").click();
+$("#archivo-csv").onchange = async e => {
+  const archivo = e.target.files[0]; if (!archivo) return;
+  try {
+    const r = await api("POST", "/api/faq/importar", await archivo.arrayBuffer(), true);
+    toast(`Importadas: ${r.importadas} · repetidas: ${r.repetidas} · omitidas: ${r.omitidas}`);
+    cargarFaqs(); cargarEstado();
+  } catch (err) { toast(err.message, true); }
+  e.target.value = "";
+};
+
+/* ---------------- aprendizaje ---------------- */
+const pct = x => x == null ? "—" : Math.round(x * 100) + "%";
+async function cargarAprendizaje(datos) {
+  const a = datos || await api("GET", "/api/aprendizaje");
+  const sinCambios = a.con_ia ? a.sin_cambios / a.con_ia : null;
+  $("#ap-metricas").innerHTML = `
+    <div class="metrica"><span class="valor">${a.total}</span><span class="ayuda">respuestas aprendidas</span></div>
+    <div class="metrica"><span class="valor">${pct(sinCambios)}</span><span class="ayuda">borradores de IA enviados sin cambios (${a.sin_cambios} de ${a.con_ia})</span></div>
+    <div class="metrica"><span class="valor">${pct(a.cambio_reciente)}</span><span class="ayuda">cuánto corregís en promedio (últimos 10)</span></div>
+    <div class="metrica"><span class="valor">${a.pendientes}/${a.minimo}</span><span class="ayuda">correcciones nuevas para el próximo análisis</span></div>`;
+  $("#ap-preferencias").value = a.preferencias;
+  $("#ap-auto").checked = a.auto;
+  $("#ap-fecha").textContent = a.fecha ? "actualizadas " + fecha(a.fecha) : "";
+  $("#ap-resumen").hidden = !a.resumen;
+  $("#ap-resumen").textContent = a.resumen ? "Último análisis: " + a.resumen : "";
+  $("#ap-plantillas").innerHTML = a.plantillas.length ? a.plantillas.map(p => `
+    <div class="ejemplo"><div class="fila"><span class="asunto">${esc(p.pregunta || "(plantilla borrada)")}</span>
+      <span class="etiqueta ${p.cambio > .3 ? "pedido" : p.cambio > .1 ? "borrador" : "respondido"}">corregís ${pct(p.cambio)}</span>
+      <span class="ayuda">${p.usos} ${p.usos === 1 ? "uso" : "usos"}</span></div></div>`).join("")
+    : `<p class="ayuda">Todavía no hay datos: aparecen cuando marcás como respondidos mails redactados con IA.</p>`;
+  $("#ap-ejemplos").innerHTML = a.ejemplos.length ? a.ejemplos.map(e => `
+    <div class="ejemplo ${e.usar ? "" : "apagado"}" data-id="${e.id}">
+      <div class="fila">
+        <input type="checkbox" data-usar ${e.usar ? "checked" : ""} title="Usar como ejemplo">
+        <span class="asunto">${esc(e.asunto || "(sin asunto)")}</span>
+        ${e.similitud == null ? `<span class="etiqueta">escrita a mano</span>`
+          : e.similitud >= .98 ? `<span class="etiqueta respondido">IA sin cambios</span>`
+          : `<span class="etiqueta borrador">corregida ${pct(1 - e.similitud)}</span>`}
+        <span class="ayuda">${fecha(e.creado, true)}</span>
+        <button class="chico" data-ver>Ver</button>
+        <button class="chico peligro" data-borrar title="Olvidar esta respuesta">✕</button>
+      </div>
+      <div data-detalle hidden></div>
+    </div>`).join("")
+    : `<p class="ayuda">Todavía no hay respuestas aprendidas. Usá «Copiar y marcar respondido» cuando envíes una respuesta.</p>`;
+  document.querySelectorAll("#ap-ejemplos .ejemplo").forEach(el => {
+    const e = a.ejemplos.find(x => x.id === +el.dataset.id);
+    el.querySelector("[data-usar]").onchange = async ev => {
+      await api("PATCH", "/api/aprendizaje/ejemplos/" + e.id, { usar: ev.target.checked });
+      el.classList.toggle("apagado", !ev.target.checked);
+    };
+    el.querySelector("[data-ver]").onclick = () => {
+      const d = el.querySelector("[data-detalle]");
+      d.hidden = !d.hidden;
+      d.innerHTML = (e.texto_ia && e.similitud < .98 ? `<b class="ayuda">Borrador de la IA</b><pre>${esc(e.texto_ia)}</pre><b class="ayuda">Lo que enviaste</b>` : "")
+        + `<pre>${esc(e.texto_final)}</pre>`;
+    };
+    el.querySelector("[data-borrar]").onclick = async () => {
+      if (!confirm("¿Olvidar esta respuesta? Ya no se usará como ejemplo.")) return;
+      await api("DELETE", "/api/aprendizaje/ejemplos/" + e.id); cargarAprendizaje();
+    };
+  });
+}
+$("#ap-guardar").onclick = async () => {
+  try { cargarAprendizaje(await api("PUT", "/api/aprendizaje", { preferencias: $("#ap-preferencias").value })); toast("Preferencias guardadas"); }
+  catch (e) { toast(e.message, true); }
+};
+$("#ap-auto").onchange = async ev => { await api("PUT", "/api/aprendizaje", { auto: ev.target.checked }); };
+$("#ap-analizar").onclick = async () => {
+  const b = $("#ap-analizar"); b.disabled = true; b.textContent = "Analizando…";
+  try { cargarAprendizaje(await api("POST", "/api/aprendizaje/analizar")); toast("Preferencias actualizadas. Revisalas."); }
+  catch (e) { toast(e.message, true); }
+  finally { b.disabled = false; b.textContent = "Analizar mis correcciones ahora"; }
+};
+
+/* ---------------- config ---------------- */
+async function cargarConfig() {
+  const c = st.cfg = await api("GET", "/api/config"), f = $("#form-config");
+  f.correo_metodo.value = c.correo_metodo || "rest";
+  $("#campo-puerto").hidden = f.correo_metodo.value !== "imap";
+  f.correo_metodo.onchange = () => { $("#campo-puerto").hidden = f.correo_metodo.value !== "imap"; };
+  for (const k of ["imap_host", "imap_puerto", "imap_usuario", "imap_carpeta", "imap_dias", "firma", "tono"]) f[k].value = c[k] ?? "";
+  f.imap_verificar_ssl.checked = c.imap_verificar_ssl === "1";
+  f.ia_auto.checked = c.ia_auto === "1";
+  f.imap_password.value = "";
+  f.imap_password.placeholder = c.imap_password_guardada ? "•••••••• (guardada; dejá vacío para no cambiarla)" : "";
+  $("#pw-ayuda").textContent = c.imap_password_guardada ? "✓ guardada (por seguridad no se muestra)" : "";
+  $("#pw-ayuda").style.color = c.imap_password_guardada ? "var(--ok)" : "";
+  f.ia_proveedor.value = c.ia_proveedor || "1min";
+  marcarProveedor();
+  for (const [prov, key] of Object.entries(PROV_KEY)) {
+    const caja = document.querySelector(`.prov[data-prov="${prov}"]`), guardada = c[key + "_guardada"];
+    f[key].value = "";
+    f[key].placeholder = guardada ? "•••••••• (guardada; dejá vacío para no cambiarla)" : "Pegá acá tu API key";
+    caja.querySelector("[data-key-ayuda]").textContent = guardada ? "✓ guardada (por seguridad no se muestra)" : "(todavía no hay ninguna guardada)";
+    caja.querySelector("[data-key-ayuda]").style.color = guardada ? "var(--ok)" : "";
+  }
+  await Promise.all(Object.keys(PROV_KEY).map(cargarModelos));
+}
+const PROV_KEY = { "1min": "ia_key", gemini: "gemini_key" };
+const PROV_MODELO = { "1min": "ia_modelo", gemini: "gemini_modelo" };
+function marcarProveedor() {
+  const activo = $("#sel-prov").value;
+  document.querySelectorAll(".prov").forEach(c => c.classList.toggle("activo", c.dataset.prov === activo));
+}
+$("#sel-prov").onchange = marcarProveedor;
+async function cargarModelos(prov) {
+  const caja = document.querySelector(`.prov[data-prov="${prov}"]`);
+  const sel = caja.querySelector("[data-sel-modelo]"), ayuda = caja.querySelector("[data-modelos-ayuda]");
+  const actual = st.cfg?.[PROV_MODELO[prov]];
+  sel.innerHTML = `<option value="${esc(actual || "")}">${esc(actual || "Cargando…")}</option>`;
+  let r;
+  try { r = await api("GET", "/api/ia/modelos?proveedor=" + prov); }
+  catch (e) {
+    ayuda.textContent = /404|Ruta no encontrada/.test(e.message)
+      ? "El dashboard que está corriendo es una versión anterior. Cerrá la ventana negra, volvé a abrir iniciar.bat y recargá esta página."
+      : "No se pudo cargar la lista de modelos: " + e.message;
+    return;
+  }
+  const lista = r.modelos.includes(actual) || !actual ? r.modelos : [actual, ...r.modelos];
+  sel.innerHTML = lista.map(m => `<option value="${esc(m)}">${esc(m)}${m === r.recomendado ? "  (recomendado)" : ""}</option>`).join("");
+  sel.value = actual || r.recomendado;
+  ayuda.textContent = r.origen !== "respaldo"
+    ? `${r.modelos.length} modelos disponibles en tu cuenta de ${r.origen}.`
+    : "Lista de respaldo. Guardá tu API key y tocá «Actualizar lista» para ver los modelos de tu cuenta." + (r.error ? " (" + r.error + ")" : "");
+}
+document.querySelectorAll("[data-btn-modelos]").forEach(b => b.onclick = async () => {
+  try { await guardarConfig(); toast("Lista de modelos actualizada"); } catch (e) { toast(e.message, true); }
+});
+async function guardarConfig() {
+  const f = $("#form-config");
+  const datos = Object.fromEntries(new FormData(f));
+  datos.imap_verificar_ssl = f.imap_verificar_ssl.checked ? "1" : "0";
+  datos.ia_auto = f.ia_auto.checked ? "1" : "0";
+  await api("PUT", "/api/config", datos);
+  await cargarConfig();
+}
+$("#form-config").onsubmit = async e => { e.preventDefault(); try { await guardarConfig(); toast("Configuración guardada"); } catch (err) { toast(err.message, true); } };
+$("#btn-probar").onclick = async () => { try { await guardarConfig(); await sincronizar(); } catch (err) { toast(err.message, true); } };
+
+window.addEventListener("beforeunload", () => { if (st.guardando) guardarYa(); });
+window.addEventListener("focus", () => { if (st.vista === "bandeja" && !st.guardando) { cargarEstado(); cargarLista(); } });
+
+cargarEstado(); cargarLista();
+</script>
+</body>
+</html>

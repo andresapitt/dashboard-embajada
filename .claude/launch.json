@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dashboard-ejemplo",
+      "runtimeExecutable": "C:\\Users\\Yani\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "runtimeArgs": ["server.py", "--sin-navegador"],
+      "env": { "DASHBOARD_DB": "D:\\Documents\\embajada\\dashboard\\datos\\prueba-ia.db", "DASHBOARD_PUERTO": "8777", "DASHBOARD_DEMO": "1" },
+      "port": 8777,
+      "url": "http://127.0.0.1:8777"
+    }
+  ]
+}
