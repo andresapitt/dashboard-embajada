@@ -5,134 +5,265 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Respuestas de mails</title>
 <style>
+/* ===================================================================== TOKENS
+   Estilo: Minimalismo & Swiss Style. Monocromático, un solo acento, sin sombras ni radios,
+   jerarquía por tipografía y filetes. Todo componente toma sus valores de acá. */
 :root {
-  --bg: #f4f5f7; --panel: #ffffff; --borde: #dfe2e7; --texto: #1d2330; --suave: #626b7a;
-  --acento: #2f5fa7; --acento-suave: #e6eef9; --ok: #2e7d4f; --ok-suave: #e3f3e9;
-  --aviso: #9a6200; --aviso-suave: #fdf1dc; --peligro: #b3261e; --sombra: 0 1px 2px rgba(0,0,0,.06);
+  /* Color: superficies y texto (nombres existentes, valores nuevos) */
+  --bg: #F7F7F5; --panel: #FFFFFF; --borde: #E3E3E0; --texto: #111111; --suave: #555555;
+  --acento: #0055A4; --acento-suave: #E8F0F9;
+  --ok: #1B6E3A; --ok-suave: #E6F2EA; --aviso: #8A4B00; --aviso-suave: #FBF0DD; --peligro: #B3261E;
+  --sombra: none;
+  /* Color: tokens agregados */
+  --borde-control: #767676;      /* bordes de campos: 4.5:1 sobre --panel (mín. 3:1 para controles) */
+  --borde-fuerte: var(--texto);  /* filetes estructurales (cabecera, títulos de sección) */
+  --fondo-hover: #F0F0EE;
+  --sobre-acento: #FFFFFF;       /* texto sobre fondos --acento */
+  --sobre-peligro: #FFFFFF;
+  --foco: var(--acento);
+  --telon: rgba(17, 17, 17, .45); /* fondo detrás de los diálogos */
+  --codigo-fondo: var(--fondo-hover);
+
+  /* Tipografía */
+  --fuente: "Helvetica Neue", Helvetica, Arial, "Segoe UI", system-ui, sans-serif;
+  --fs-xs: 12px; --fs-sm: 13px; --fs-base: 15px; --fs-md: 16px; --fs-lg: 20px; --fs-xl: 28px;
+  --lh: 1.5; --lh-ajustado: 1.2;
+  --peso-normal: 400; --peso-medio: 500; --peso-fuerte: 700;
+  --tracking-rotulo: .08em;
+
+  /* Espaciado (escala de 4px) */
+  --esp-1: 4px; --esp-2: 8px; --esp-3: 12px; --esp-4: 16px; --esp-5: 24px; --esp-6: 32px; --esp-7: 48px;
+
+  /* Radios: Swiss = esquinas rectas */
+  --radio: 0; --radio-pastilla: 0;
+
+  /* Estados de interacción */
+  --transicion: 200ms ease;
+  --foco-ancho: 2px; --foco-separacion: 2px;
+  --opacidad-deshabilitado: .45;
+  --alto-control: 36px; --alto-control-chico: 28px; --alto-tactil: 44px;
+
+  /* Filetes (grosor de bordes) */
+  --filete: 1px; --filete-fuerte: 2px; --filete-acento: 3px;
+
+  /* Layout */
+  --alto-header: 57px; --ancho-lista: 340px; --ancho-lateral: 360px;
+  --ancho-contenido: 1000px; --ancho-angosto: 680px;
+  --capa-header: 5; --capa-toast: 20;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #15181d; --panel: #1e222a; --borde: #333a45; --texto: #e6e9ee; --suave: #9aa3b2;
-    --acento: #7aa7ec; --acento-suave: #24334a; --ok: #6cc18f; --ok-suave: #1f3529;
-    --aviso: #e2b25c; --aviso-suave: #3a2f1a; --peligro: #ef8a82; --sombra: none;
+    --bg: #0E0E0E; --panel: #171717; --borde: #2B2B2B; --texto: #F2F2F2; --suave: #A3A3A3;
+    --acento: #6EA8FF; --acento-suave: #14243A;
+    --ok: #6CCB8A; --ok-suave: #12291A; --aviso: #F0B34A; --aviso-suave: #2E2311; --peligro: #FF8A80;
+    --borde-control: #8A8A8A; --fondo-hover: #202020;
+    --sobre-acento: #0E0E0E; --sobre-peligro: #0E0E0E;
+    --telon: rgba(0, 0, 0, .65);
   }
 }
-* { box-sizing: border-box; }
-body { margin: 0; font: 14px/1.45 "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--texto); }
-button, input, textarea, select { font: inherit; color: inherit; }
-button { cursor: pointer; border: 1px solid var(--borde); background: var(--panel); border-radius: 6px; padding: 6px 12px; }
-button:hover { border-color: var(--acento); }
-button.primario { background: var(--acento); border-color: var(--acento); color: #fff; }
-@media (prefers-color-scheme: dark) { button.primario { color: #10151d; } }
-button.peligro { color: var(--peligro); }
-button.chico { padding: 3px 8px; font-size: 12.5px; }
-button:disabled { opacity: .55; cursor: default; }
-input[type=text], input[type=password], input[type=number], input[type=search], textarea, select {
-  width: 100%; border: 1px solid var(--borde); border-radius: 6px; padding: 7px 9px; background: var(--panel);
-}
-textarea { resize: vertical; }
-input:focus, textarea:focus, select:focus { outline: 2px solid var(--acento-suave); border-color: var(--acento); }
-label { display: block; font-weight: 600; margin: 12px 0 4px; }
-.ayuda { color: var(--suave); font-size: 12.5px; font-weight: normal; }
+@media (prefers-reduced-motion: reduce) { :root { --transicion: 0ms; } }
 
-header { display: flex; align-items: center; gap: 18px; padding: 10px 18px; background: var(--panel); border-bottom: 1px solid var(--borde); position: sticky; top: 0; z-index: 5; }
-header h1 { font-size: 16px; margin: 0; white-space: nowrap; }
-nav { display: flex; gap: 4px; }
-nav button { border: none; background: none; padding: 6px 12px; border-radius: 6px; color: var(--suave); }
-nav button.activo { background: var(--acento-suave); color: var(--acento); font-weight: 600; }
-header .derecha { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+/* ===================================================================== BASE */
+* { box-sizing: border-box; }
+body { margin: 0; font-family: var(--fuente); font-size: var(--fs-base); line-height: var(--lh);
+  background: var(--bg); color: var(--texto); -webkit-font-smoothing: antialiased; }
+button, input, textarea, select { font: inherit; color: inherit; }
+b, strong { font-weight: var(--peso-fuerte); }
+a { color: var(--acento); }
+:focus-visible { outline: var(--foco-ancho) solid var(--foco); outline-offset: var(--foco-separacion); }
+
+/* ===================================================================== BOTONES */
+button, .boton {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--esp-1);
+  min-height: var(--alto-control); padding: 0 var(--esp-3);
+  border: var(--filete) solid var(--borde-control); border-radius: var(--radio);
+  background: var(--panel); color: var(--texto); font-weight: var(--peso-medio);
+  text-decoration: none; cursor: pointer; white-space: nowrap;
+  transition: background-color var(--transicion), border-color var(--transicion), color var(--transicion);
+}
+button:hover, .boton:hover { border-color: var(--texto); background: var(--fondo-hover); }
+button.primario { background: var(--acento); border-color: var(--acento); color: var(--sobre-acento); }
+button.primario:hover { background: var(--texto); border-color: var(--texto); color: var(--panel); }
+button.peligro { color: var(--peligro); }
+button.peligro:hover { border-color: var(--peligro); }
+button.chico { min-height: var(--alto-control-chico); padding: 0 var(--esp-2); font-size: var(--fs-sm); }
+button:disabled, button:disabled:hover { opacity: var(--opacidad-deshabilitado); cursor: default;
+  background: var(--panel); border-color: var(--borde-control); color: var(--texto); }
+button.primario:disabled { background: var(--acento); color: var(--sobre-acento); }
+
+/* ===================================================================== CAMPOS */
+input[type=text], input[type=password], input[type=number], input[type=search], textarea, select {
+  width: 100%; min-height: var(--alto-control); padding: var(--esp-2) var(--esp-3);
+  border: var(--filete) solid var(--borde-control); border-radius: var(--radio); background: var(--panel);
+  transition: border-color var(--transicion);
+}
+textarea { resize: vertical; line-height: var(--lh); }
+input:hover, textarea:hover, select:hover { border-color: var(--texto); }
+input:focus-visible, textarea:focus-visible, select:focus-visible { border-color: var(--foco); outline-offset: 0; }
+input[type=checkbox] { width: var(--esp-4); height: var(--esp-4); margin: 0 var(--esp-2) 0 0; accent-color: var(--acento); vertical-align: -3px; }
+::placeholder { color: var(--suave); opacity: 1; }
+label { display: block; font-weight: var(--peso-fuerte); font-size: var(--fs-sm); margin: var(--esp-4) 0 var(--esp-1); }
+label.check-inline { font-weight: var(--peso-normal); font-size: var(--fs-base); }
+.acciones label.check-inline { margin: 0; }
+.ayuda { color: var(--suave); font-size: var(--fs-sm); font-weight: var(--peso-normal); }
+.ayuda.intro { margin-top: 0; }
+.ayuda.ok { color: var(--ok); }
+.fila-control { display: flex; gap: var(--esp-2); }
+
+/* ===================================================================== CABECERA Y NAVEGACIÓN */
+header { display: flex; align-items: center; gap: var(--esp-5); padding: 0 var(--esp-5); min-height: var(--alto-header);
+  background: var(--panel); border-bottom: var(--filete-fuerte) solid var(--borde-fuerte); position: sticky; top: 0; z-index: var(--capa-header); }
+header h1 { font-size: var(--fs-md); font-weight: var(--peso-fuerte); letter-spacing: -.01em; margin: 0; white-space: nowrap; }
+nav { display: flex; gap: var(--esp-1); align-self: stretch; }
+nav button { min-height: 0; border: none; border-bottom: var(--filete-acento) solid transparent; background: none; padding: 0 var(--esp-3);
+  color: var(--suave); font-weight: var(--peso-medio); }
+nav button:hover { background: none; color: var(--texto); border-bottom-color: var(--borde); }
+nav button.activo { color: var(--texto); border-bottom-color: var(--acento); font-weight: var(--peso-fuerte); }
+nav button:focus-visible { outline-offset: calc(-1 * var(--foco-ancho)); }
+header .derecha { margin-left: auto; display: flex; align-items: center; gap: var(--esp-3); }
 
 .vista { display: none; }
 .vista.activa { display: block; }
 
-/* Bandeja */
-#vista-bandeja.activa { display: grid; grid-template-columns: 340px 1fr; height: calc(100vh - 53px); }
-.lista { border-right: 1px solid var(--borde); display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
-.lista .controles { padding: 12px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--borde); }
-.filtros { display: flex; flex-wrap: wrap; gap: 4px; }
-.filtros button { padding: 3px 9px; font-size: 12.5px; border-radius: 99px; }
-.filtros button.activo { background: var(--acento); color: #fff; border-color: var(--acento); }
-@media (prefers-color-scheme: dark) { .filtros button.activo { color: #10151d; } }
+/* ===================================================================== BANDEJA: LISTA */
+#vista-bandeja.activa { display: grid; grid-template-columns: var(--ancho-lista) minmax(0, 1fr); height: calc(100vh - var(--alto-header)); }
+.lista { border-right: var(--filete) solid var(--borde); display: flex; flex-direction: column; min-height: 0; background: var(--panel); }
+.lista .controles { padding: var(--esp-4); display: flex; flex-direction: column; gap: var(--esp-3); border-bottom: var(--filete) solid var(--borde); }
+.filtros { display: flex; flex-wrap: wrap; gap: var(--esp-1); }
+.filtros button { min-height: var(--alto-control-chico); padding: 0 var(--esp-2); font-size: var(--fs-xs);
+  border-color: var(--borde); border-radius: var(--radio-pastilla); }
+.filtros button.activo { background: var(--texto); color: var(--panel); border-color: var(--texto); }
 .items { overflow-y: auto; flex: 1; }
-.item { padding: 10px 12px; border-bottom: 1px solid var(--borde); cursor: pointer; }
-.item:hover { background: var(--bg); }
-.item.sel { background: var(--acento-suave); }
-.item .fila { display: flex; justify-content: space-between; gap: 8px; }
-.item .de { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.item .fecha { color: var(--suave); font-size: 12px; white-space: nowrap; }
+.item { padding: var(--esp-3) var(--esp-4); border-bottom: var(--filete) solid var(--borde); border-left: var(--filete-acento) solid transparent;
+  cursor: pointer; transition: background-color var(--transicion); }
+.item:hover { background: var(--fondo-hover); }
+.item.sel { background: var(--acento-suave); border-left-color: var(--acento); }
+.item:focus-visible { outline-offset: calc(-1 * var(--foco-ancho)); }
+.item .fila { display: flex; justify-content: space-between; gap: var(--esp-2); }
+.item .de { font-weight: var(--peso-fuerte); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .fecha { color: var(--suave); font-size: var(--fs-xs); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .item .asunto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.item .extracto { color: var(--suave); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .extracto { color: var(--suave); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.etiqueta { display: inline-block; font-size: 11.5px; padding: 1px 7px; border-radius: 99px; background: var(--bg); color: var(--suave); border: 1px solid var(--borde); white-space: nowrap; }
+/* ===================================================================== ETIQUETAS DE ESTADO */
+.etiqueta { display: inline-block; font-size: var(--fs-xs); font-weight: var(--peso-medio); line-height: var(--lh-ajustado);
+  padding: var(--filete-fuerte) var(--esp-2); border-radius: var(--radio-pastilla); background: transparent; color: var(--suave);
+  border: var(--filete) solid var(--borde); white-space: nowrap; }
 .etiqueta.nuevo { background: var(--acento-suave); color: var(--acento); border-color: transparent; }
 .etiqueta.pedido { background: var(--aviso-suave); color: var(--aviso); border-color: transparent; }
 .etiqueta.borrador { background: var(--aviso-suave); color: var(--aviso); border-color: transparent; }
 .etiqueta.respondido { background: var(--ok-suave); color: var(--ok); border-color: transparent; }
 
-.detalle { overflow-y: auto; padding: 18px; min-width: 0; }
+/* ===================================================================== BANDEJA: DETALLE */
+.detalle { overflow-y: auto; padding: var(--esp-5); min-width: 0; }
 .vacio { color: var(--suave); text-align: center; margin-top: 18vh; }
-.cols { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
-.tarjeta { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; padding: 14px; margin-bottom: 14px; box-shadow: var(--sombra); }
-.tarjeta h3 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--suave); display: flex; justify-content: space-between; align-items: center; }
-.cabecera h2 { margin: 0 0 4px; font-size: 18px; }
-.cabecera .meta { color: var(--suave); }
-.acciones { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.cuerpo-mail { white-space: pre-wrap; word-wrap: break-word; max-height: 360px; overflow-y: auto; font-size: 13.5px; }
-#editor { min-height: 300px; font-size: 14px; line-height: 1.5; }
-.estado-guardado { color: var(--suave); font-size: 12px; margin-left: auto; }
-.aviso { background: var(--aviso-suave); color: var(--aviso); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; font-size: 13px; }
-.aviso code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 4px; }
-.sug { border: 1px solid var(--borde); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
-.sug .preg { font-weight: 600; }
-.sug .resp { white-space: pre-wrap; color: var(--suave); font-size: 12.5px; max-height: 4.5em; overflow: hidden; margin: 4px 0 6px; }
+.vacio.compacto { margin-top: var(--esp-7); }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) var(--ancho-lateral); gap: var(--esp-5); align-items: start; }
+.tarjeta { background: var(--panel); border: var(--filete) solid var(--borde); border-radius: var(--radio); padding: var(--esp-5);
+  margin-bottom: var(--esp-4); box-shadow: var(--sombra); }
+.tarjeta h3 { margin: 0 0 var(--esp-4); padding-bottom: var(--esp-2); border-bottom: var(--filete) solid var(--borde-fuerte);
+  font-size: var(--fs-xs); font-weight: var(--peso-fuerte); text-transform: uppercase; letter-spacing: var(--tracking-rotulo);
+  color: var(--texto); display: flex; justify-content: space-between; align-items: baseline; gap: var(--esp-3); }
+.tarjeta h3 .ayuda, .tarjeta h3 .estado-guardado { text-transform: none; letter-spacing: 0; }
+.tarjeta h3.seccion { margin-top: var(--esp-6); }
+.cabecera .titulo-fila { display: flex; justify-content: space-between; gap: var(--esp-3); align-items: start; }
+.cabecera h2 { margin: 0 0 var(--esp-1); font-size: var(--fs-lg); font-weight: var(--peso-fuerte); line-height: var(--lh-ajustado); letter-spacing: -.01em; }
+.cabecera .meta { color: var(--suave); font-size: var(--fs-sm); }
+.cuerpo-plegable { margin-top: var(--esp-4); }
+.cuerpo-plegable summary { cursor: pointer; color: var(--suave); font-size: var(--fs-sm); font-weight: var(--peso-medio); }
+.cuerpo-plegable summary:hover { color: var(--texto); }
+.cuerpo-plegable .cuerpo-mail { margin-top: var(--esp-3); }
+.acciones { display: flex; flex-wrap: wrap; gap: var(--esp-2); align-items: center; }
+.separada { margin-top: var(--esp-3); }
+.empuja-derecha { margin-left: auto; }
+.cuerpo-mail { white-space: pre-wrap; word-wrap: break-word; max-height: 360px; overflow-y: auto; font-size: var(--fs-base); }
+#editor { min-height: 300px; font-size: var(--fs-base); line-height: var(--lh); }
+#buscar-sug { margin-bottom: var(--esp-3); }
+.estado-guardado { color: var(--suave); font-size: var(--fs-xs); font-weight: var(--peso-normal); margin-left: auto; }
+.aviso { background: var(--aviso-suave); color: var(--aviso); border-left: var(--filete-acento) solid var(--aviso); border-radius: var(--radio);
+  padding: var(--esp-2) var(--esp-3); margin-bottom: var(--esp-3); font-size: var(--fs-sm); }
+.aviso.en-linea { margin: var(--esp-2) 0 0; }
+.aviso code { background: var(--codigo-fondo); color: var(--texto); padding: var(--filete) var(--esp-1); border-radius: var(--radio); }
+.sug { border: var(--filete) solid var(--borde); border-radius: var(--radio); padding: var(--esp-3); margin-bottom: var(--esp-2); transition: border-color var(--transicion); }
+.sug .preg { font-weight: var(--peso-fuerte); }
+.sug .resp { white-space: pre-wrap; color: var(--suave); font-size: var(--fs-sm); max-height: 4.5em; overflow: hidden; margin: var(--esp-1) 0 var(--esp-2); }
 .sug.abierta .resp { max-height: none; }
-.sug.usada { border-color: var(--ok); }
-.metricas { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 14px; }
-.metrica { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; padding: 10px 14px; }
-.metrica .valor { font-size: 22px; font-weight: 600; }
-.metrica .ayuda { display: block; }
-.ejemplo { border-top: 1px solid var(--borde); padding: 8px 0; }
-.ejemplo:first-child { border-top: none; }
-.ejemplo .fila { display: flex; gap: 10px; align-items: center; }
+.sug.usada { border-color: var(--ok); border-left-width: var(--filete-acento); }
+.analisis { background: var(--bg); border-left: var(--filete-acento) solid var(--acento); border-radius: var(--radio);
+  padding: var(--esp-2) var(--esp-3); margin-bottom: var(--esp-3); font-size: var(--fs-sm); }
+.analisis .etiqueta { margin-left: var(--esp-1); }
+.nota { border-left: var(--filete-acento) solid var(--texto); padding: var(--esp-1) var(--esp-3); margin-bottom: var(--esp-3); white-space: pre-wrap; }
+.nota .cuando { color: var(--suave); font-size: var(--fs-xs); display: flex; justify-content: space-between; }
+.nota .cuando a { color: var(--suave); text-decoration: none; padding: 0 var(--esp-1); }
+.nota .cuando a:hover { color: var(--peligro); }
+
+/* ===================================================================== APRENDIZAJE */
+.metricas { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0; margin-bottom: var(--esp-5);
+  border-top: var(--filete-fuerte) solid var(--borde-fuerte); }
+.metrica { padding: var(--esp-4) var(--esp-4) var(--esp-4) 0; border-bottom: var(--filete) solid var(--borde); }
+.metrica .valor { display: block; font-size: var(--fs-xl); font-weight: var(--peso-fuerte); line-height: var(--lh-ajustado);
+  letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.metrica .ayuda { display: block; margin-top: var(--esp-1); }
+.ejemplo { border-top: var(--filete) solid var(--borde); padding: var(--esp-3) 0; }
+.ejemplo:first-child { border-top: none; padding-top: 0; }
+.ejemplo .fila { display: flex; gap: var(--esp-3); align-items: center; }
 .ejemplo .asunto { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ejemplo pre { white-space: pre-wrap; font: inherit; font-size: 12.5px; color: var(--suave); margin: 6px 0 0; max-height: 260px; overflow-y: auto; }
+.ejemplo pre { white-space: pre-wrap; font: inherit; font-size: var(--fs-sm); color: var(--suave); margin: var(--esp-2) 0 0; max-height: 260px; overflow-y: auto; }
 .ejemplo.apagado .asunto { color: var(--suave); text-decoration: line-through; }
-.prov { border: 1px solid var(--borde); border-radius: 8px; padding: 4px 12px 8px; margin-top: 12px; opacity: .75; }
-.prov.activo { border-color: var(--acento); opacity: 1; }
-.prov-titulo { font-weight: 600; margin-top: 8px; }
-.prov .prov-activo { display: none; margin-left: 6px; }
+
+/* ===================================================================== CONFIGURACIÓN */
+.prov { border: var(--filete) solid var(--borde); border-radius: var(--radio); padding: var(--esp-1) var(--esp-4) var(--esp-3); margin-top: var(--esp-4);
+  transition: border-color var(--transicion); }
+.prov.activo { border-color: var(--acento); border-left-width: var(--filete-acento); }
+.prov-titulo { font-weight: var(--peso-fuerte); margin-top: var(--esp-3); }
+.prov .prov-activo { display: none; margin-left: var(--esp-2); }
 .prov.activo .prov-activo { display: inline-block; }
-.analisis { background: var(--bg); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px; font-size: 13px; }
-.analisis .etiqueta { margin-left: 4px; }
-.nota { border-left: 3px solid var(--acento); padding: 4px 8px; margin-bottom: 8px; white-space: pre-wrap; }
-.nota .cuando { color: var(--suave); font-size: 11.5px; display: flex; justify-content: space-between; }
+.botones { display: flex; gap: var(--esp-2); margin-top: var(--esp-5); }
 
-/* FAQ */
-.contenedor { max-width: 1000px; margin: 0 auto; padding: 20px 18px; }
-.barra { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+/* ===================================================================== PREGUNTAS FRECUENTES */
+.contenedor { max-width: var(--ancho-contenido); margin: 0 auto; padding: var(--esp-6) var(--esp-5); }
+.contenedor.angosto { max-width: var(--ancho-angosto); }
+.barra { display: flex; gap: var(--esp-2); align-items: center; margin-bottom: var(--esp-5); flex-wrap: wrap; }
 .barra input[type=search] { flex: 1; min-width: 200px; }
-.faq { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
-.faq .preg { font-weight: 600; display: flex; justify-content: space-between; gap: 10px; }
-.faq .resp { white-space: pre-wrap; margin-top: 6px; color: var(--suave); }
-.faq .pie { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.faq { background: var(--panel); border: var(--filete) solid var(--borde); border-radius: var(--radio); padding: var(--esp-4) var(--esp-5); margin-bottom: calc(-1 * var(--filete)); }
+.faq .preg { font-weight: var(--peso-fuerte); display: flex; justify-content: space-between; gap: var(--esp-3); }
+.faq .resp { white-space: pre-wrap; margin-top: var(--esp-2); color: var(--suave); font-size: var(--fs-sm); }
+.faq .pie { display: flex; gap: var(--esp-2); align-items: center; margin-top: var(--esp-3); }
 
-/* Modal y avisos */
-dialog { border: 1px solid var(--borde); border-radius: 10px; padding: 0; width: min(720px, 94vw); background: var(--panel); color: var(--texto); }
-dialog::backdrop { background: rgba(0,0,0,.35); }
-dialog form { padding: 18px; }
-dialog h2 { margin: 0 0 6px; font-size: 17px; }
-dialog .botones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-#toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--texto); color: var(--bg); padding: 9px 16px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; max-width: 90vw; }
+/* ===================================================================== DIÁLOGOS Y AVISOS */
+dialog { border: var(--filete-fuerte) solid var(--borde-fuerte); border-radius: var(--radio); padding: 0; width: min(720px, 94vw);
+  background: var(--panel); color: var(--texto); box-shadow: var(--sombra); }
+dialog::backdrop { background: var(--telon); }
+dialog form { padding: var(--esp-5); }
+dialog h2 { margin: 0 0 var(--esp-2); font-size: var(--fs-lg); font-weight: var(--peso-fuerte); }
+dialog .botones { justify-content: flex-end; }
+#toast { position: fixed; bottom: var(--esp-5); left: 50%; transform: translateX(-50%); background: var(--texto); color: var(--panel);
+  padding: var(--esp-3) var(--esp-4); border-radius: var(--radio); opacity: 0; transition: opacity var(--transicion);
+  pointer-events: none; z-index: var(--capa-toast); max-width: 90vw; font-weight: var(--peso-medio); }
 #toast.ver { opacity: 1; }
-#toast.error { background: var(--peligro); color: #fff; }
+#toast.error { background: var(--peligro); color: var(--sobre-peligro); }
 
-@media (max-width: 1100px) { .cols { grid-template-columns: 1fr; } }
+/* ===================================================================== RESPONSIVE */
+@media (max-width: 1100px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+/* La cabecera pasa a dos filas (título + botón arriba, navegación abajo) antes de que la navegación deje de entrar */
+@media (max-width: 1024px) {
+  header { flex-wrap: wrap; gap: 0 var(--esp-3); padding: var(--esp-2) var(--esp-4) 0; }
+  header .derecha { order: 2; }
+  nav { order: 3; width: 100%; overflow-x: auto; scrollbar-width: none; }
+  nav button { min-height: var(--alto-tactil); white-space: nowrap; }
+  #vista-bandeja.activa { height: auto; min-height: calc(100vh - var(--alto-header)); }
+  .lista { max-height: 100vh; }
+}
 @media (max-width: 760px) {
-  #vista-bandeja.activa { grid-template-columns: minmax(0, 1fr); height: auto; }
-  nav { flex-wrap: wrap; }
-  .lista { max-height: 45vh; border-right: none; border-bottom: 1px solid var(--borde); }
-  header { flex-wrap: wrap; gap: 8px; padding: 10px 16px; }
-  .detalle, .contenedor { padding: 16px; }
+  #vista-bandeja.activa { grid-template-columns: minmax(0, 1fr); }
+  .lista { max-height: 45vh; border-right: none; border-bottom: var(--filete) solid var(--borde); }
+  .detalle, .contenedor { padding: var(--esp-4); }
+  .tarjeta { padding: var(--esp-4); }
+}
+/* Pantallas táctiles: objetivos de 44px como mínimo */
+@media (pointer: coarse) {
+  button, .boton, input[type=text], input[type=password], input[type=number], input[type=search], select { min-height: var(--alto-tactil); }
+  button.chico, .filtros button { min-height: var(--alto-tactil); }
 }
 </style>
 </head>
@@ -156,8 +287,8 @@ dialog .botones { display: flex; justify-content: flex-end; gap: 8px; margin-top
   <aside class="lista">
     <div class="controles">
       <div class="filtros" id="filtros"></div>
-      <div style="display:flex; gap:6px">
-        <input type="search" id="buscar-mail" placeholder="Buscar por asunto, remitente o texto…">
+      <div class="fila-control">
+        <input type="search" id="buscar-mail" aria-label="Buscar mails" placeholder="Buscar por asunto, remitente o texto…">
         <button id="btn-pegar" title="Cargar un mail copiando y pegando su texto">+ Pegar</button>
       </div>
     </div>
@@ -172,10 +303,10 @@ dialog .botones { display: flex; justify-content: flex-end; gap: 8px; margin-top
 <section id="vista-faq" class="vista">
   <div class="contenedor">
     <div class="barra">
-      <input type="search" id="buscar-faq" placeholder="Buscar pregunta o respuesta…">
+      <input type="search" id="buscar-faq" aria-label="Buscar preguntas frecuentes" placeholder="Buscar pregunta o respuesta…">
       <button class="primario" id="btn-nueva-faq">+ Nueva</button>
       <button id="btn-importar">Importar CSV</button>
-      <a href="/api/faq/exportar"><button type="button">Exportar CSV</button></a>
+      <a class="boton" href="/api/faq/exportar">Exportar CSV</a>
       <input type="file" id="archivo-csv" accept=".csv,.txt" hidden>
     </div>
     <div id="lista-faq"></div>
@@ -185,32 +316,32 @@ dialog .botones { display: flex; justify-content: flex-end; gap: 8px; margin-top
 <!-- ======================= APRENDIZAJE ======================= -->
 <section id="vista-aprendizaje" class="vista">
   <div class="contenedor">
-    <p class="ayuda" style="margin-top:0">Cada vez que marcás un mail como <b>respondido</b>, el dashboard guarda la respuesta que enviaste.
+    <p class="ayuda intro">Cada vez que marcás un mail como <b>respondido</b>, el dashboard guarda la respuesta que enviaste.
       La IA usa esas respuestas como ejemplo para consultas parecidas, y cada vez que corregís varios borradores analiza
       qué cambiaste y actualiza las <b>preferencias</b> de abajo.</p>
     <div class="metricas" id="ap-metricas"></div>
 
     <div class="tarjeta">
       <h3>Preferencias aprendidas <span class="ayuda" id="ap-fecha"></span></h3>
-      <p class="ayuda" style="margin-top:0">Una regla por línea. La IA las sigue siempre al redactar. Podés editarlas, borrar las que no te sirvan o agregar las tuyas.</p>
+      <p class="ayuda intro">Una regla por línea. La IA las sigue siempre al redactar. Podés editarlas, borrar las que no te sirvan o agregar las tuyas.</p>
       <div class="aviso" id="ap-resumen" hidden></div>
-      <textarea id="ap-preferencias" rows="10" placeholder="Todavía no hay preferencias. Se generan solas después de que corrijas y marques como respondidos algunos borradores de la IA."></textarea>
-      <div class="acciones" style="margin-top:8px">
+      <textarea id="ap-preferencias" rows="10" aria-label="Preferencias aprendidas, una por línea" placeholder="Todavía no hay preferencias. Se generan solas después de que corrijas y marques como respondidos algunos borradores de la IA."></textarea>
+      <div class="acciones separada">
         <button class="primario" id="ap-guardar">Guardar preferencias</button>
         <button id="ap-analizar">Analizar mis correcciones ahora</button>
-        <label style="font-weight:normal; margin:0 0 0 auto"><input type="checkbox" id="ap-auto"> Aprender automáticamente</label>
+        <label class="check-inline empuja-derecha"><input type="checkbox" id="ap-auto"> Aprender automáticamente</label>
       </div>
     </div>
 
     <div class="tarjeta">
       <h3>Plantillas que más corregís</h3>
-      <p class="ayuda" style="margin-top:0">Si una plantilla siempre necesita muchos cambios, conviene actualizarla en Preguntas frecuentes.</p>
+      <p class="ayuda intro">Si una plantilla siempre necesita muchos cambios, conviene actualizarla en Preguntas frecuentes.</p>
       <div id="ap-plantillas"></div>
     </div>
 
     <div class="tarjeta">
       <h3>Respuestas aprendidas</h3>
-      <p class="ayuda" style="margin-top:0">Destildá las que no quieras que se usen como ejemplo (por ejemplo, un caso muy particular).</p>
+      <p class="ayuda intro">Destildá las que no quieras que se usen como ejemplo (por ejemplo, un caso muy particular).</p>
       <div id="ap-ejemplos"></div>
     </div>
   </div>
@@ -218,7 +349,7 @@ dialog .botones { display: flex; justify-content: flex-end; gap: 8px; margin-top
 
 <!-- ======================= CONFIG ======================= -->
 <section id="vista-config" class="vista">
-  <div class="contenedor" style="max-width:680px">
+  <div class="contenedor angosto">
     <form id="form-config" class="tarjeta" autocomplete="off">
       <h3>Conexión al correo (solo lectura)</h3>
       <p class="ayuda">El dashboard solo <b>lee</b> la bandeja: no envía, no borra y no marca los mails como leídos.
@@ -242,10 +373,10 @@ dialog .botones { display: flex; justify-content: flex-end; gap: 8px; margin-top
       <input type="text" name="imap_carpeta">
       <label>Traer mails de los últimos (días)</label>
       <input type="number" name="imap_dias" min="1" max="365">
-      <label style="font-weight:normal"><input type="checkbox" name="imap_verificar_ssl"> Verificar el certificado SSL del servidor
+      <label class="check-inline"><input type="checkbox" name="imap_verificar_ssl"> Verificar el certificado SSL del servidor
         <span class="ayuda">(destildalo solo si da error de certificado)</span></label>
 
-      <h3 style="margin-top:22px">Inteligencia artificial</h3>
+      <h3 class="seccion">Inteligencia artificial</h3>
       <p class="ayuda">La IA elige la plantilla más adecuada de tu base y la adapta a cada mail (nombre, fechas, detalles).
         Para hacerlo, el texto del mail y tus plantillas se envían al proveedor elegido.</p>
       <label>Proveedor que se usa para redactar</label>
@@ -258,8 +389,8 @@ dialog .botones { display: flex; justify-content: flex-end; gap: 8px; margin-top
         <label>API key de 1min.ai <span class="ayuda" data-key-ayuda></span></label>
         <input type="password" name="ia_key" autocomplete="new-password">
         <label>Modelo</label>
-        <div style="display:flex; gap:6px">
-          <select name="ia_modelo" data-sel-modelo></select>
+        <div class="fila-control">
+          <select name="ia_modelo" data-sel-modelo aria-label="Modelo de 1min.ai"></select>
           <button type="button" data-btn-modelos title="Descargar la lista de modelos de tu cuenta">Actualizar lista</button>
         </div>
         <p class="ayuda" data-modelos-ayuda></p>
@@ -269,20 +400,20 @@ dialog .botones { display: flex; justify-content: flex-end; gap: 8px; margin-top
         <label>API key de Gemini <span class="ayuda" data-key-ayuda></span></label>
         <input type="password" name="gemini_key" autocomplete="new-password">
         <label>Modelo</label>
-        <div style="display:flex; gap:6px">
-          <select name="gemini_modelo" data-sel-modelo></select>
+        <div class="fila-control">
+          <select name="gemini_modelo" data-sel-modelo aria-label="Modelo de Gemini"></select>
           <button type="button" data-btn-modelos title="Descargar la lista de modelos de tu cuenta">Actualizar lista</button>
         </div>
         <p class="ayuda" data-modelos-ayuda></p>
       </div>
-      <label style="font-weight:normal"><input type="checkbox" name="ia_auto"> Redactar automáticamente con IA los mails nuevos al traerlos</label>
+      <label class="check-inline"><input type="checkbox" name="ia_auto"> Redactar automáticamente con IA los mails nuevos al traerlos</label>
 
-      <h3 style="margin-top:22px">Estilo de las respuestas</h3>
+      <h3 class="seccion">Estilo de las respuestas</h3>
       <label>Firma <span class="ayuda">(se agrega al final de los borradores)</span></label>
       <textarea name="firma" rows="4"></textarea>
       <label>Tono e instrucciones generales para Claude</label>
       <textarea name="tono" rows="4"></textarea>
-      <div class="botones" style="display:flex; gap:8px; margin-top:16px">
+      <div class="botones">
         <button class="primario" type="submit">Guardar</button>
         <button type="button" id="btn-probar">Guardar y traer mails</button>
       </div>
@@ -296,9 +427,9 @@ dialog .botones { display: flex; justify-content: flex-end; gap: 8px; margin-top
     <h2>Pegar un mail</h2>
     <p class="ayuda">Para mails que no llegan por IMAP: copiá el texto del mail y pegalo acá.</p>
     <label>Remitente</label>
-    <div style="display:flex; gap:8px">
-      <input type="text" name="remitente" placeholder="Nombre">
-      <input type="text" name="remitente_email" placeholder="correo@ejemplo.com">
+    <div class="fila-control">
+      <input type="text" name="remitente" placeholder="Nombre" aria-label="Nombre del remitente">
+      <input type="text" name="remitente_email" placeholder="correo@ejemplo.com" aria-label="Email del remitente">
     </div>
     <label>Asunto</label>
     <input type="text" name="asunto">
@@ -396,14 +527,20 @@ async function cargarEstado() {
 async function cargarLista() {
   const p = new URLSearchParams({ estado: st.filtro, q: st.busqueda });
   const mails = await api("GET", "/api/mails?" + p);
+  const enfocado = document.activeElement?.closest?.(".item")?.dataset.id;  // para no perder el foco del teclado al recargar
   $("#items").innerHTML = mails.length ? mails.map(m => `
-    <div class="item ${m.id === st.mailId ? "sel" : ""}" data-id="${m.id}">
+    <div class="item ${m.id === st.mailId ? "sel" : ""}" data-id="${m.id}" tabindex="0" role="button"
+         aria-current="${m.id === st.mailId}" aria-label="${esc((m.remitente || m.remitente_email || "Sin remitente") + ": " + (m.asunto || "") + " (" + ETIQ[m.estado] + ")")}">
       <div class="fila"><span class="de">${esc(m.remitente || m.remitente_email || "(sin remitente)")}</span><span class="fecha">${fecha(m.fecha, true)}</span></div>
       <div class="asunto">${esc(m.asunto)}</div>
       <div class="fila"><span class="extracto">${esc(m.extracto)}</span>
-        <span>${m.notas ? `<span class="etiqueta" title="Notas">✎ ${m.notas}</span> ` : ""}<span class="etiqueta ${m.estado}">${ETIQ[m.estado]}</span></span></div>
-    </div>`).join("") : `<p class="vacio" style="margin-top:40px">No hay mails acá.</p>`;
-  $("#items").querySelectorAll(".item").forEach(el => el.onclick = () => abrirMail(+el.dataset.id));
+        <span>${m.notas ? `<span class="etiqueta" title="Notas">${m.notas} ${m.notas === 1 ? "nota" : "notas"}</span> ` : ""}<span class="etiqueta ${m.estado}">${ETIQ[m.estado]}</span></span></div>
+    </div>`).join("") : `<p class="vacio compacto">No hay mails acá.</p>`;
+  $("#items").querySelectorAll(".item").forEach(el => {
+    el.onclick = () => abrirMail(+el.dataset.id);
+    el.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); abrirMail(+el.dataset.id); } };
+  });
+  if (enfocado) $(`#items .item[data-id="${enfocado}"]`)?.focus();
 }
 
 let tBusq;
@@ -412,7 +549,10 @@ $("#buscar-mail").oninput = e => { clearTimeout(tBusq); tBusq = setTimeout(() =>
 async function abrirMail(id) {
   await guardarYa();
   st.mailId = id;
-  document.querySelectorAll(".item").forEach(el => el.classList.toggle("sel", +el.dataset.id === id));
+  document.querySelectorAll(".item").forEach(el => {
+    el.classList.toggle("sel", +el.dataset.id === id);
+    el.setAttribute("aria-current", +el.dataset.id === id);
+  });
   pintarDetalle(await api("GET", "/api/mails/" + id));
 }
 
@@ -430,20 +570,20 @@ function pintarDetalle(d) {
         <span class="ayuda">· ${an.idioma ? esc(an.idioma) + " · " : ""}${esc(an.modelo)}</span>
         ${an.ejemplos_usados || an.preferencias_usadas ? `<span class="ayuda" title="Lo que aprendió de tus respuestas anteriores">· usó ${an.ejemplos_usados || 0} ejemplo(s) tuyo(s) y ${an.preferencias_usadas || 0} preferencia(s)</span>` : ""}</div>
       ${an.motivo ? `<div class="ayuda">${esc(an.motivo)}</div>` : ""}
-      ${an.pendientes?.length ? `<div class="aviso" style="margin:6px 0 0">Revisar antes de enviar: ${an.pendientes.map(esc).join(" · ")}</div>` : ""}
+      ${an.pendientes?.length ? `<div class="aviso en-linea">Revisar antes de enviar: ${an.pendientes.map(esc).join(" · ")}</div>` : ""}
     </div>` : "";
   $("#detalle").innerHTML = `
   <div class="cols">
     <div>
       <div class="tarjeta cabecera">
-        <div class="fila" style="display:flex; justify-content:space-between; gap:10px; align-items:start">
+        <div class="titulo-fila">
           <div><h2>${esc(m.asunto)}</h2>
             <div class="meta">${esc(m.remitente)} ${m.remitente_email ? "&lt;" + esc(m.remitente_email) + "&gt;" : ""} · ${fecha(m.fecha)}</div></div>
           <span class="etiqueta ${m.estado}">${ETIQ[m.estado]}</span>
         </div>
-        <details style="margin-top:10px" ${m.estado !== "respondido" ? "open" : ""}>
-          <summary style="cursor:pointer; color:var(--suave)">Mensaje del cliente</summary>
-          <div class="cuerpo-mail" style="margin-top:8px">${esc(m.cuerpo)}</div>
+        <details class="cuerpo-plegable" ${m.estado !== "respondido" ? "open" : ""}>
+          <summary>Mensaje del cliente</summary>
+          <div class="cuerpo-mail">${esc(m.cuerpo)}</div>
         </details>
       </div>
 
@@ -451,8 +591,8 @@ function pintarDetalle(d) {
         <h3>Respuesta <span class="estado-guardado" id="guardado">${esc(autor)}</span></h3>
         ${analisisHtml}
         ${m.estado === "pedido" ? `<div class="aviso">Pedido a Claude. Abrí Claude Code en la carpeta del dashboard y decile: <code>redactá los borradores pendientes</code>. Después tocá <b>Recargar</b>.</div>` : ""}
-        <textarea id="editor" placeholder="Escribí la respuesta, insertá una respuesta sugerida o pedile un borrador a Claude…">${esc(d.borrador ? d.borrador.texto : "")}</textarea>
-        <div class="acciones" style="margin-top:10px">
+        <textarea id="editor" aria-label="Respuesta" placeholder="Escribí la respuesta, insertá una respuesta sugerida o pedile un borrador a Claude…">${esc(d.borrador ? d.borrador.texto : "")}</textarea>
+        <div class="acciones separada">
           <button class="primario" id="btn-copiar">Copiar</button>
           <button id="btn-copiar-resp">Copiar y marcar respondido</button>
           <button id="btn-a-faq" title="Guardar esta respuesta en la base de preguntas frecuentes">Guardar como pregunta frecuente</button>
@@ -462,8 +602,8 @@ function pintarDetalle(d) {
 
       <div class="tarjeta">
         <h3>Redactar con IA</h3>
-        <textarea id="instruccion" rows="2" placeholder="Opcional: indicaciones para este caso (ej. 'mencionar que el turno se pide por la web', 'es una urgencia')">${esc(m.instruccion)}</textarea>
-        <div class="acciones" style="margin-top:8px">
+        <textarea id="instruccion" rows="2" aria-label="Indicaciones para la IA" placeholder="Opcional: indicaciones para este caso (ej. 'mencionar que el turno se pide por la web', 'es una urgencia')">${esc(m.instruccion)}</textarea>
+        <div class="acciones separada">
           <button class="primario" id="btn-ia">${d.borrador?.autor === "ia" ? "Volver a redactar con IA" : "Redactar con IA"}</button>
           <button class="chico" id="btn-pedir" title="Dejarlo marcado para que Claude Code lo redacte">${m.estado === "pedido" ? "Actualizar pedido a Claude Code" : "Pedir a Claude Code"}</button>
           ${m.estado === "pedido" ? `<button id="btn-cancelar-pedido" class="chico">Cancelar pedido</button>` : ""}
@@ -473,22 +613,22 @@ function pintarDetalle(d) {
       <div class="acciones">
         <span class="ayuda">Estado:</span>
         ${["nuevo", "borrador", "respondido", "archivado"].filter(e => e !== m.estado).map(e => `<button class="chico" data-estado="${e}">Marcar ${ETIQ[e].toLowerCase()}</button>`).join("")}
-        <button class="chico peligro" id="btn-borrar" style="margin-left:auto">Quitar del dashboard</button>
+        <button class="chico peligro empuja-derecha" id="btn-borrar">Quitar del dashboard</button>
       </div>
     </div>
 
     <div>
       <div class="tarjeta">
         <h3>Respuestas sugeridas</h3>
-        <input type="search" id="buscar-sug" placeholder="Buscar otra respuesta…" style="margin-bottom:10px">
+        <input type="search" id="buscar-sug" aria-label="Buscar otra respuesta" placeholder="Buscar otra respuesta…">
         <div id="sugerencias"></div>
       </div>
       <div class="tarjeta">
         <h3>Notas</h3>
         <div id="notas">${d.notas.map(n => `
-          <div class="nota"><div class="cuando"><span>${fecha(n.creado)}</span><a href="#" data-nota="${n.id}" title="Borrar nota">✕</a></div>${esc(n.texto)}</div>`).join("") || `<p class="ayuda">Sin notas todavía.</p>`}</div>
-        <textarea id="nueva-nota" rows="2" placeholder="Agregar una nota (ej. 'pidió turno para el 12/11', 'falta que mande el DNI')"></textarea>
-        <button id="btn-nota" style="margin-top:6px">Agregar nota</button>
+          <div class="nota"><div class="cuando"><span>${fecha(n.creado)}</span><a href="#" data-nota="${n.id}" title="Borrar nota" aria-label="Borrar nota">✕</a></div>${esc(n.texto)}</div>`).join("") || `<p class="ayuda">Sin notas todavía.</p>`}</div>
+        <textarea id="nueva-nota" rows="2" aria-label="Nueva nota" placeholder="Agregar una nota (ej. 'pidió turno para el 12/11', 'falta que mande el DNI')"></textarea>
+        <button id="btn-nota" class="separada">Agregar nota</button>
       </div>
     </div>
   </div>`;
@@ -642,8 +782,7 @@ async function cargarFaqs() {
       <div class="preg"><span>${esc(f.pregunta)}</span>${f.categoria ? `<span class="etiqueta">${esc(f.categoria)}</span>` : ""}</div>
       <div class="resp">${esc(f.respuesta)}</div>
       <div class="pie"><span class="ayuda">Usada ${f.usos} ${f.usos === 1 ? "vez" : "veces"}</span>
-        <span style="margin-left:auto"></span>
-        <button class="chico" data-edit="${f.id}">Editar</button><button class="chico peligro" data-del="${f.id}">Borrar</button></div>
+        <button class="chico empuja-derecha" data-edit="${f.id}">Editar</button><button class="chico peligro" data-del="${f.id}">Borrar</button></div>
     </div>`).join("") : `<p class="vacio">${q ? "No hay resultados." : "Todavía no hay preguntas frecuentes. Importá tu CSV o creá una nueva."}</p>`;
   document.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => abrirFaq(st.faqs.find(f => f.id === +b.dataset.edit)));
   document.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
@@ -763,7 +902,7 @@ async function cargarConfig() {
   f.imap_password.value = "";
   f.imap_password.placeholder = c.imap_password_guardada ? "•••••••• (guardada; dejá vacío para no cambiarla)" : "";
   $("#pw-ayuda").textContent = c.imap_password_guardada ? "✓ guardada (por seguridad no se muestra)" : "";
-  $("#pw-ayuda").style.color = c.imap_password_guardada ? "var(--ok)" : "";
+  $("#pw-ayuda").classList.toggle("ok", !!c.imap_password_guardada);
   f.ia_proveedor.value = c.ia_proveedor || "1min";
   marcarProveedor();
   for (const [prov, key] of Object.entries(PROV_KEY)) {
@@ -771,7 +910,7 @@ async function cargarConfig() {
     f[key].value = "";
     f[key].placeholder = guardada ? "•••••••• (guardada; dejá vacío para no cambiarla)" : "Pegá acá tu API key";
     caja.querySelector("[data-key-ayuda]").textContent = guardada ? "✓ guardada (por seguridad no se muestra)" : "(todavía no hay ninguna guardada)";
-    caja.querySelector("[data-key-ayuda]").style.color = guardada ? "var(--ok)" : "";
+    caja.querySelector("[data-key-ayuda]").classList.toggle("ok", !!guardada);
   }
   await Promise.all(Object.keys(PROV_KEY).map(cargarModelos));
 }
