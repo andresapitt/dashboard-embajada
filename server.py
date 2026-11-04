@@ -116,6 +116,16 @@ def modelos_ia(con, q, cuerpo):
     return ia.listar_modelos(con, q.get("proveedor", [""])[0])
 
 
+@ruta("POST", "/api/ia/transformar")
+def transformar_ia(con, q, cuerpo):
+    """Mejorar o traducir el texto del editor (no lo guarda: la interfaz decide)."""
+    try:
+        return ia.transformar(con, cuerpo.get("texto", ""), cuerpo.get("accion", ""))
+    except ia.ErrorIA as e:
+        print(f"[{core.ahora()}] Error de IA al {cuerpo.get('accion')}: {e}", flush=True)
+        raise ErrorApi(str(e), 502)
+
+
 @ruta("POST", r"/api/mails/(\d+)/ia")
 def redactar_ia(con, q, cuerpo, mail_id):
     if "instruccion" in cuerpo:

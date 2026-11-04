@@ -155,22 +155,29 @@ def alternativas(r, desde, minutos, bloques, cantidad=3):
 
 
 def crear_cita(cfg, inicio, fin, titulo, descripcion):
-    """Crea la cita en el calendario de Zimbra (importando un evento iCalendar, sin invitados)."""
+    """Crea la cita en el calendario de Zimbra con la API SOAP (CreateAppointmentRequest).
+
+    Sin invitados ("at") ni organizador ("or"): es una cita personal y Zimbra no le envía nada a nadie.
+    Devuelve el id de la cita en Zimbra.
+    """
     uid = f"dashboard-{uuid.uuid4()}"
-    escapar = lambda s: re.sub(r"([,;\\])", r"\\\1", s).replace("\n", "\\n")
-    ics = "\r\n".join([
-        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Dashboard Mails//ES", "BEGIN:VEVENT",
-        f"UID:{uid}", f"DTSTAMP:{_utc(dt.datetime.now().astimezone()):%Y%m%dT%H%M%SZ}",
-        f"DTSTART:{_utc(inicio):%Y%m%dT%H%M%SZ}", f"DTEND:{_utc(fin):%Y%m%dT%H%M%SZ}",
-        f"SUMMARY:{escapar(titulo)}", f"DESCRIPTION:{escapar(descripcion)}",
-        "STATUS:CONFIRMED", "TRANSP:OPAQUE", "END:VEVENT", "END:VCALENDAR", ""])
+    pedido = {"CreateAppointmentRequest": {"_jsns": "urn:zimbraMail", "m": {
+        "l": "10",  # carpeta "Calendar"
+        "su": titulo,
+        "inv": {"uid": uid, "comp": [{
+            "name": titulo, "fb": "B", "fba": "B", "transp": "O", "status": "CONF", "class": "PUB", "allDay": "0",
+            "s": {"d": f"{_utc(inicio):%Y%m%dT%H%M%SZ}"}, "e": {"d": f"{_utc(fin):%Y%m%dT%H%M%SZ}"},
+            "desc": {"_content": descripcion},
+        }]},
+        "mp": {"ct": "text/plain", "content": {"_content": descripcion}},
+    }}}
     try:
-        core.zimbra(cfg, "/calendar?fmt=ics", metodo="POST", datos=ics.encode("utf-8"), tipo="text/calendar; charset=utf-8")
+        r = core.zimbra_soap(cfg, pedido)
     except ValueError as e:
         raise ErrorAgenda(str(e)) from None
     except Exception as e:
         raise ErrorAgenda(f"Zimbra no aceptó la cita: {e}") from None
-    return uid
+    return r.get("CreateAppointmentResponse", {}).get("apptId") or uid
 
 
 # ---------------------------------------------------------------- detección del turno pedido

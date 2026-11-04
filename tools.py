@@ -31,6 +31,7 @@ def main(args):
         salida({
             "firma": cfg["firma"],
             "tono": cfg["tono"],
+            "reglas_redaccion": cfg["reglas_redaccion"],
             "mails": [core.mail_completo(con, i) for i in ids],
         })
     elif cmd == "mail":

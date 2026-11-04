@@ -462,8 +462,10 @@ body:has(#progreso:not([hidden])) #toast { bottom: calc(var(--alto-progreso) + v
       <h3 class="seccion">Estilo de las respuestas</h3>
       <label>Firma <span class="ayuda">(se agrega al final de los borradores)</span></label>
       <textarea name="firma" rows="4"></textarea>
-      <label>Tono e instrucciones generales para Claude</label>
-      <textarea name="tono" rows="4"></textarea>
+      <label for="cfg-tono">Tono e instrucciones generales</label>
+      <textarea id="cfg-tono" name="tono" rows="3"></textarea>
+      <label for="cfg-reglas">Reglas de redacción <span class="ayuda">(la IA las sigue al redactar, mejorar y traducir)</span></label>
+      <textarea id="cfg-reglas" name="reglas_redaccion" rows="16"></textarea>
       <div class="botones">
         <button class="primario" type="submit">Guardar</button>
         <button type="button" id="btn-probar">Guardar y traer mails</button>
@@ -554,9 +556,35 @@ function fecha(iso, corta) {
   if (corta && hoy) return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
   return d.toLocaleDateString("es-AR", { day: "2-digit", month: "short", ...(corta ? {} : { year: "numeric", hour: "2-digit", minute: "2-digit" }) });
 }
+// El borrador usa **negrita** y líneas "- " para viñetas. Al copiar se convierte a HTML para que el webmail
+// muestre la negrita y la lista; los programas que no aceptan formato reciben el texto sin asteriscos.
+const sinMarcas = texto => texto.replace(/\*\*(.+?)\*\*/g, "$1");
+function aHtml(texto) {
+  const linea = l => esc(l).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+  const esVineta = l => /^\s*[-•*]\s+/.test(l);
+  return texto.split(/\n{2,}/).map(bloque => {
+    // Dentro de un párrafo, las líneas seguidas que empiezan con "- " forman una lista
+    let html = "", texto = [], items = [];
+    const cerrarTexto = () => { if (texto.length) html += "<p>" + texto.map(linea).join("<br>") + "</p>"; texto = []; };
+    const cerrarLista = () => { if (items.length) html += "<ul>" + items.map(l => `<li>${linea(l.replace(/^\s*[-•*]\s+/, ""))}</li>`).join("") + "</ul>"; items = []; };
+    for (const l of bloque.split("\n")) {
+      if (esVineta(l)) { cerrarTexto(); items.push(l); } else { cerrarLista(); texto.push(l); }
+    }
+    cerrarTexto(); cerrarLista();
+    return html;
+  }).join("");
+}
 async function copiar(texto) {
-  try { await navigator.clipboard.writeText(texto); }
-  catch { const t = document.createElement("textarea"); t.value = texto; document.body.append(t); t.select(); document.execCommand("copy"); t.remove(); }
+  const plano = sinMarcas(texto);
+  try {
+    await navigator.clipboard.write([new ClipboardItem({
+      "text/plain": new Blob([plano], { type: "text/plain" }),
+      "text/html": new Blob([`<div style="font-family:Arial,sans-serif">${aHtml(texto)}</div>`], { type: "text/html" }),
+    })]);
+  } catch {
+    try { await navigator.clipboard.writeText(plano); }
+    catch { const t = document.createElement("textarea"); t.value = plano; document.body.append(t); t.select(); document.execCommand("copy"); t.remove(); }
+  }
 }
 
 /* ---------------- navegación ---------------- */
@@ -693,6 +721,13 @@ function pintarDetalle(d) {
           <button id="btn-a-faq" title="Guardar esta respuesta en la base de preguntas frecuentes">Guardar como pregunta frecuente</button>
           <button id="btn-recargar" title="Recargar si Claude escribió un borrador">Recargar</button>
         </div>
+        <div class="acciones separada" role="group" aria-label="Mejorar o traducir el texto del editor">
+          <button class="chico" data-transformar="mejorar" title="Corrige y mejora la redacción sin cambiar el contenido (reglas, punto 9)">Mejorar</button>
+          <button class="chico" data-transformar="traducir_en">Traducir al inglés</button>
+          <button class="chico" data-transformar="traducir_es">Traducir al español</button>
+          <button class="chico" id="btn-deshacer" hidden title="Volver al texto anterior">Deshacer</button>
+          <span class="ayuda" id="transformar-estado" aria-live="polite"></span>
+        </div>
       </div>
 
       <div class="tarjeta">
@@ -732,6 +767,25 @@ function pintarDetalle(d) {
   const ed = $("#editor");
   ed.oninput = () => programarGuardado();
   $("#btn-copiar").onclick = async () => { await guardarYa(); await copiar(ed.value); toast("Copiado. Pegalo en tu respuesta del correo."); };
+  let textoAnterior = null;
+  document.querySelectorAll("[data-transformar]").forEach(b => b.onclick = async () => {
+    const accion = b.dataset.transformar, estado = $("#transformar-estado");
+    const botones = document.querySelectorAll("[data-transformar]");
+    botones.forEach(x => x.disabled = true); ed.disabled = true;
+    estado.textContent = { mejorar: "Mejorando…", traducir_en: "Traduciendo al inglés…", traducir_es: "Traduciendo al español…" }[accion];
+    try {
+      const r = await api("POST", "/api/ia/transformar", { texto: ed.value, accion });
+      textoAnterior = ed.value; ed.value = r.texto; $("#btn-deshacer").hidden = false;
+      estado.textContent = r.aviso ? "Revisar: " + r.aviso : "Listo. Revisalo antes de copiarlo.";
+      programarGuardado();
+    } catch (e) { estado.textContent = ""; toast(e.message, true); }
+    finally { botones.forEach(x => x.disabled = false); ed.disabled = false; }
+  });
+  $("#btn-deshacer").onclick = () => {
+    if (textoAnterior == null) return;
+    ed.value = textoAnterior; textoAnterior = null; $("#btn-deshacer").hidden = true;
+    $("#transformar-estado").textContent = "Se restauró el texto anterior."; programarGuardado();
+  };
   $("#btn-copiar-resp").onclick = async () => {
     await guardarYa(); await copiar(ed.value);
     const agendado = await agendarTurno(true);  // si el borrador confirma un turno libre, pregunta si agendarlo
@@ -1057,7 +1111,7 @@ async function cargarConfig() {
   f.correo_metodo.value = c.correo_metodo || "rest";
   $("#campo-puerto").hidden = f.correo_metodo.value !== "imap";
   f.correo_metodo.onchange = () => { $("#campo-puerto").hidden = f.correo_metodo.value !== "imap"; };
-  for (const k of ["imap_host", "imap_puerto", "imap_usuario", "imap_carpeta", "imap_dias", "firma", "tono"]) f[k].value = c[k] ?? "";
+  for (const k of ["imap_host", "imap_puerto", "imap_usuario", "imap_carpeta", "imap_dias", "firma", "tono", "reglas_redaccion"]) f[k].value = c[k] ?? "";
   f.imap_verificar_ssl.checked = c.imap_verificar_ssl === "1";
   f.ia_auto.checked = c.ia_auto === "1";
   f.imap_password.value = "";

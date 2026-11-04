@@ -127,17 +127,74 @@ Tu tarea para cada correo:
 1. Analizá el mensaje e identificá TODAS las consultas que hace la persona.
 2. Elegí la plantilla que mejor responde la consulta principal. Si hay consultas secundarias cubiertas por otras plantillas, usalas también. Si ninguna plantilla aplica, usá faq_id null.
 3. Redactá la respuesta ADAPTANDO la plantilla al caso concreto:
-   - Saludá a la persona por su nombre si se puede deducir del mensaje o del remitente (ej. "Estimada Lucía:"). Si no, usá un saludo neutro.
+   - Saludá a la persona por su nombre si se puede deducir del mensaje o del remitente (ej. "Estimada Lucía:"). Si no, usá "Estimado/a:".
+   - Respetá el trato del remitente: si escribe de tú o de vos, respondé con trato informal; si escribe de usted, de usted. Si no se puede saber, usá usted. No mezcles los dos.
+   - En el trato informal, si el remitente usa voseo rioplatense (podés, tenés, avisanos), usá voseo; si usa tuteo (puedes, tienes), tuteo.
    - Usá los detalles del mensaje original (fechas, lugares, documentos, situación familiar, urgencia) para que la respuesta sea específica y no genérica.
    - Quitá de la plantilla lo que no aplique al caso y reordená si hace falta. Respondé todas las preguntas.
-   - NO inventes requisitos, costos, plazos, horarios, direcciones, teléfonos ni links que no estén en las plantillas. Si una pregunta no está cubierta, escribí un marcador visible [COMPLETAR: qué falta] en el lugar correspondiente.
+   - NO inventes requisitos, costos, plazos, horarios, direcciones, teléfonos ni links que no estén en las plantillas o en los REQUISITOS CONFIRMADOS de las reglas del operador (esos valen como datos oficiales). Si una pregunta no está cubierta, escribí un marcador visible [COMPLETAR: qué falta] en el lugar correspondiente.
 4. IDIOMA: respondé en el mismo idioma en que está escrito el correo (por ejemplo, si escriben en inglés, respondé en inglés). Si la plantilla elegida está en otro idioma, traducila con cuidado, sin cambiar requisitos, montos, plazos ni links. Si no se puede determinar el idioma, usá español.
-5. Usá el tono indicado y terminá con la firma si se te da una, tal cual (no la traduzcas ni agregues otra despedida duplicada).
+5. Seguí las REGLAS DE REDACCIÓN DEL OPERADOR (más abajo) y el tono indicado. Terminá con el cierre que indican las reglas y, si se te da una firma, agregala tal cual después (no la traduzcas ni dupliques la despedida).
+   - Las plantillas son la fuente de los datos (requisitos, aranceles, plazos, links), no del estilo: si una plantilla usa fórmulas que las reglas piden evitar, reescribilas con el estilo de las reglas.
 6. TURNOS: nunca confirmes un turno, día u horario por tu cuenta. Solo confirmalo si el bloque AGENDA dice que está LIBRE o YA AGENDADO, y con exactamente ese día y esa hora. Informá solo el día y la hora (ej. "el lunes 09/11 a las 10:00"): nunca la duración ni la hora de finalización. Si la AGENDA dice que no está disponible, no lo confirmes y ofrecé las alternativas que indica.
-7. Si se te dan PREFERENCIAS APRENDIDAS del operador, seguilas siempre: son la forma en que él corrige los borradores. Si se te dan EJEMPLOS de respuestas que ya envió, imitá su estilo, estructura y nivel de detalle, pero NUNCA copies de ellos nombres, fechas, números ni datos personales; los datos oficiales salen siempre de las plantillas.
+7. Si se te dan PREFERENCIAS APRENDIDAS del operador, seguilas siempre: son la forma en que el operador corrige los borradores. Si se te dan EJEMPLOS de respuestas que ya envió, imitá su estilo, estructura y nivel de detalle, pero NUNCA copies de ellos nombres, fechas, números ni datos personales; los datos oficiales salen siempre de las plantillas.
+
+FORMATO DEL TEXTO: el operador lo copia y lo pega en el webmail. Usá párrafos separados por una línea en blanco; para listas, una línea por ítem que empiece con "- "; para negrita, **así** (solo nombres de documentos, aranceles o requisitos esenciales). Nada de encabezados con # ni otro Markdown.
 
 Devolvé SOLO un objeto JSON con esta forma (los campos "motivo", "consultas" y "pendientes" siempre en español, porque los lee el operador):
 {"faq_id": <id de la plantilla principal o null>, "faq_ids_secundarias": [<ids>], "idioma": "<idioma de la respuesta, ej. español o inglés>", "confianza": "alta" | "media" | "baja", "motivo": "<una oración: por qué elegiste esa plantilla>", "consultas": ["<cada consulta detectada>"], "pendientes": ["<lo que quedó como [COMPLETAR]>"], "respuesta": "<texto completo del correo de respuesta>"}"""
+
+
+def con_reglas(sistema, cfg):
+    """Agrega al mensaje de sistema las reglas de redacción del operador (Configuración)."""
+    reglas = (cfg.get("reglas_redaccion") or "").strip()
+    if not reglas:
+        return sistema
+    return (sistema + "\n\n=== REGLAS DE REDACCIÓN DEL OPERADOR ===\n"
+            "Seguilas siempre. Definen el estilo, la estructura y las fórmulas; nunca cambian los datos oficiales de las plantillas.\n\n"
+            + reglas)
+
+
+ACCIONES = {
+    "mejorar": ("Mejorá el correo siguiendo exactamente lo que las reglas definen para \"mejorar\": corregí gramática, ortografía y puntuación, "
+                "mejorá la redacción y la fluidez, mantené el estilo, el idioma y el trato, y no agregues ni quites información, "
+                "requisitos, montos, plazos ni compromisos. Conservá las formas verbales del trato: si el original usa voseo rioplatense "
+                "(podés, tenés, avisanos, traé), seguí con voseo; no lo pases a tuteo (puedes, tienes) ni a usted."),
+    "traducir_en": ("Traducí el correo al inglés británico/irlandés, de forma profesional, natural y fiel. Mantené el significado, requisitos, "
+                    "plazos, importes, referencias legales y nombres oficiales. Traducí solo lo que dice el original, sin agregar frases nuevas "
+                    "(si el original no agradece el correo, la traducción tampoco); para las frases que sí están, usá las fórmulas en inglés de las reglas."),
+    "traducir_es": ("Traducí el correo al español, de forma profesional, natural y fiel (usá usted salvo que el original trate claramente de forma informal). "
+                    "Mantené el significado, requisitos, plazos, importes, referencias legales y nombres oficiales. Traducí solo lo que dice el original, "
+                    "sin agregar frases nuevas; para las frases que sí están, usá las fórmulas en español de las reglas."),
+}
+
+
+def transformar(con, texto, accion):
+    """Mejora o traduce un correo según las reglas del operador. Devuelve {"texto", "aviso"}."""
+    if accion not in ACCIONES:
+        raise ErrorIA("Acción desconocida.")
+    if not (texto or "").strip():
+        raise ErrorIA("El editor está vacío.")
+    cfg = core.leer_config(con)
+    sistema = con_reglas(
+        "Sos el asistente de redacción de la sección consular de la Embajada Argentina en Irlanda. " + ACCIONES[accion] +
+        " Respetá los marcadores [COMPLETAR: ...] tal cual (traducí solo su texto si traducís).\n\n"
+        "FORMATO DEL TEXTO: párrafos separados por una línea en blanco; listas con una línea por ítem que empiece con \"- \"; "
+        "negrita con **así** solo para lo importante; nada de otro Markdown.\n\n"
+        "Devolvé SOLO un JSON: {\"texto\": \"<el correo completo, listo para enviar>\", "
+        "\"aviso\": \"<solo si hay una cuestión importante que el operador deba revisar, en español; si no, null>\"}", cfg)
+    datos, modelo = completar_json(con, sistema, f"CORREO:\n{texto[:15000]}", max_tokens=6000)
+    nuevo = str(datos.get("texto") or "").strip()
+    if not nuevo:
+        raise ErrorIA("La IA no devolvió el texto. Probá de nuevo.")
+    return {"texto": nuevo, "aviso": datos.get("aviso") or None, "modelo": modelo}
+
+
+def requisitos_confirmados(cfg):
+    """La sección "REQUISITOS CONFIRMADOS" de las reglas: se repite junto al mail para que la IA no la pase por alto."""
+    m = re.search(r"REQUISITOS CONFIRMADOS\s*\n(.*?)(?=\n\s*\d+\.\s+[A-ZÁÉÍÓÚÑ ]{4,}\n|\Z)",
+                  cfg.get("reglas_redaccion") or "", re.S)
+    return m.group(1).strip() if m else ""
 
 
 def _plantillas(con, mail, faq_forzada=None):
@@ -241,6 +298,10 @@ def redactar(con, mail_id, instruccion=None, faq_forzada=None):
             "no copies sus nombres ni datos personales):\n\n" + "\n\n".join(
                 f"--- Ejemplo {i}\nCONSULTA: {e['consulta'][:800]}\nRESPUESTA ENVIADA:\n{e['texto_final'][:1800]}"
                 for i, e in enumerate(ejemplos, 1)))
+    requisitos = requisitos_confirmados(cfg)
+    if requisitos:
+        usuario.append("REQUISITOS CONFIRMADOS POR EL OPERADOR (valen como datos oficiales: si alguno corresponde a la situación "
+                       "de este correo, incluilo en la respuesta aunque la plantilla no lo diga):\n" + requisitos)
     usuario.append("PLANTILLAS DISPONIBLES:\n" + "\n\n".join(
         f"[id {f['id']}] ({f['categoria'] or 'sin categoría'}) {f['pregunta']}\n{f['respuesta']}" for f in plantillas))
     usuario.append(
@@ -249,7 +310,7 @@ def redactar(con, mail_id, instruccion=None, faq_forzada=None):
         f"Asunto: {mail['asunto'] or ''}\n\n{(mail['cuerpo'] or '')[:12000]}"
     )
 
-    datos, modelo = completar_json(con, SISTEMA, "\n\n".join(usuario))
+    datos, modelo = completar_json(con, con_reglas(SISTEMA, cfg), "\n\n".join(usuario))
     try:
         texto = str(datos["respuesta"]).strip()
     except (KeyError, TypeError):

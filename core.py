@@ -85,6 +85,14 @@ CREATE TABLE IF NOT EXISTS config (
 );
 """
 
+TONO_ANTERIOR = "Cordial y formal, tratando de usted. Respuestas claras y breves."
+TONO_DEFECTO = "Seguir las reglas de redacción. Respetar el trato (tú o usted) que usa el remitente."
+try:
+    with open(os.path.join(BASE, "reglas_redaccion.md"), encoding="utf-8") as _f:
+        REGLAS_DEFECTO = _f.read().strip()
+except OSError:
+    REGLAS_DEFECTO = ""
+
 CONFIG_DEFECTO = {
     "correo_metodo": "rest",  # "rest" = API del webmail Zimbra (HTTPS); "imap" = IMAP
     "imap_host": "correo.mrecic.gov.ar",
@@ -94,7 +102,9 @@ CONFIG_DEFECTO = {
     "imap_dias": "30",
     "imap_verificar_ssl": "1",
     "firma": "",
-    "tono": "Cordial y formal, tratando de usted. Respuestas claras y breves.",
+    "tono": TONO_DEFECTO,
+    # Reglas de redacción del operador: se le pasan a la IA en cada redacción (editables en Configuración)
+    "reglas_redaccion": REGLAS_DEFECTO,
     "ia_proveedor": "1min",  # "1min" o "gemini"
     "ia_modelo": "gpt-4.1-mini",  # modelo de 1min.ai
     "gemini_modelo": "gemini-2.5-flash",
@@ -134,6 +144,9 @@ def conectar():
         con.execute("ALTER TABLE borradores ADD COLUMN analisis TEXT")
     if "texto_ia" not in columnas:  # lo que escribió la IA, para comparar con la versión final
         con.execute("ALTER TABLE borradores ADD COLUMN texto_ia TEXT")
+    # El tono por defecto anterior forzaba el "usted" y contradice la regla de respetar el trato del remitente
+    con.execute("UPDATE config SET valor=? WHERE clave='tono' AND valor=?", (TONO_DEFECTO, TONO_ANTERIOR))
+    con.commit()
     return con
 
 
@@ -363,6 +376,45 @@ def zimbra(cfg, ruta, metodo="GET", datos=None, tipo=None, contexto=None):
         if e.code == 404:
             raise ValueError("Zimbra no encontró la carpeta pedida.") from None
         raise
+
+
+def zimbra_soap(cfg, cuerpo, contexto=None):
+    """Pedido a la API SOAP de Zimbra (formato JSON), autenticado con el usuario y la contraseña del correo.
+
+    Se usa para escribir (crear citas): en el servidor del ministerio la API REST rechaza cualquier POST
+    con "Content-Length header already present" (error de su proxy interno), pero SOAP funciona.
+    """
+    contexto = contexto or contexto_ssl(cfg)
+    url = f"https://{cfg['imap_host'].strip().rstrip('/')}/service/soap"
+
+    def pedir(body, token=None):
+        ctx = {"_jsns": "urn:zimbra", "format": {"type": "js"}}
+        if token:
+            ctx["authToken"] = {"_content": token}
+        req = urllib.request.Request(url, data=json.dumps({"Header": {"context": ctx}, "Body": body}).encode("utf-8"),
+                                     method="POST", headers={"Content-Type": "application/json", "User-Agent": "DashboardMails"})
+        try:
+            with urllib.request.urlopen(req, timeout=60, context=contexto) as r:
+                respuesta = json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            try:
+                respuesta = json.loads(e.read())
+            except ValueError:
+                raise ValueError(f"Zimbra respondió {e.code}") from None
+        falla = respuesta.get("Body", {}).get("Fault")
+        if falla:
+            codigo = falla.get("Detail", {}).get("Error", {}).get("Code", "")
+            if codigo == "account.AUTH_FAILED":
+                raise ValueError("El correo rechazó el usuario o la contraseña. Revisalos en Configuración.")
+            raise ValueError(f"Zimbra rechazó el pedido: {falla.get('Reason', {}).get('Text', codigo)}")
+        return respuesta["Body"]
+
+    if not cfg.get("imap_usuario") or not cfg.get("imap_password"):
+        raise ValueError("Falta configurar el usuario y la contraseña del correo (pestaña Configuración).")
+    auth = pedir({"AuthRequest": {"_jsns": "urn:zimbraAccount", "account": {"by": "name", "_content": cfg["imap_usuario"]},
+                                  "password": {"_content": cfg["imap_password"]}}})
+    token = auth["AuthResponse"]["authToken"][0]["_content"]
+    return pedir(cuerpo, token)
 
 
 def _sincronizar_rest(con, cfg, contexto, desde, progreso=_sin_progreso):

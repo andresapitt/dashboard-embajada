@@ -20,6 +20,12 @@ porque Cloudflare bloquea "Python-urllib" (error 1010).
 El modelo elige la plantilla de FAQ, la adapta y devuelve JSON (`faq_id`, `confianza`, `motivo`, `pendientes`, `respuesta`). El resultado se guarda en `borradores.analisis`.
 Las API keys se cargan en Configuración y quedan cifradas con DPAPI (`ia_key` y `gemini_key`, igual que la contraseña). Nunca las leas ni las muestres.
 La IA responde en el idioma del mail, porque algunas plantillas de visas están en inglés.
+Reglas de redacción: `reglas_redaccion` (config; por defecto, el contenido de `reglas_redaccion.md`). `ia.con_reglas()` las agrega al mensaje
+de sistema de cada redacción, y también a "Mejorar" y "Traducir" (`ia.transformar`, `POST /api/ia/transformar`). El texto usa `**negrita**`
+y viñetas con `- `; el botón Copiar lo convierte a HTML para que el webmail muestre el formato.
+La sección "11. REQUISITOS CONFIRMADOS" de las reglas tiene requisitos que el usuario confirmó (por ejemplo: sin DNI, partida de nacimiento
+expedida por el Registro Civil correspondiente). `ia.requisitos_confirmados()` la extrae y la repite junto al mail, porque al final de las reglas
+la IA la pasaba por alto. Valen como datos oficiales, igual que las plantillas.
 
 ## Agenda de turnos (`agenda.py`)
 
@@ -28,8 +34,11 @@ La IA responde en el idioma del mail, porque algunas plantillas de visas están 
 - Reglas (Configuración): lunes a viernes de `agenda_desde` a `agenda_hasta`; duración por categoría de FAQ en `agenda_duraciones`
   (Poderes 60, Nacionalidad 120, el resto `agenda_duracion` = 30); al día siempre le tienen que quedar `agenda_reserva_diaria` (30) minutos libres.
 - Si está libre, la IA lo confirma; si no, ofrece alternativas. El resultado queda en `borradores.analisis.agenda`.
-- Agendar (`POST /api/mails/<id>/agendar`) lo confirma el operador. Vuelve a revisar que esté libre y crea la cita con
-  `POST /home/~/calendar?fmt=ics`, **sin ATTENDEE ni ORGANIZER**, para que Zimbra no le mande nada a nadie.
+- Agendar (`POST /api/mails/<id>/agendar`) lo confirma el operador. Vuelve a revisar que esté libre y crea la cita con la API **SOAP**
+  (`core.zimbra_soap` → `CreateAppointmentRequest` en la carpeta 10, "Calendar"), **sin invitados (`at`) ni organizador (`or`)**,
+  para que Zimbra no le mande nada a nadie.
+- No usar la API REST para escribir: en este servidor, cualquier POST a `/home/~/...` falla con 500
+  "Content-Length header already present" (es un error del proxy interno de Zimbra), aunque se mande por partes (chunked).
 
 ## Aprendizaje (`aprendizaje.py`, pestaña Aprendizaje)
 
@@ -44,7 +53,9 @@ La IA responde en el idioma del mail, porque algunas plantillas de visas están 
 
 El usuario marca los mails como "Pedido a Claude" desde el dashboard. Para responderlos:
 
-1. `python tools.py pendientes`: devuelve los mails pedidos, la `instruccion` de cada uno, las `sugerencias` de FAQ, la `firma` y el `tono`.
+1. `python tools.py pendientes`: devuelve los mails pedidos, la `instruccion` de cada uno, las `sugerencias` de FAQ, la `firma`, el `tono`
+   y las `reglas_redaccion` del usuario (por defecto, [reglas_redaccion.md](reglas_redaccion.md)). **Seguí esas reglas siempre**: estructura,
+   fórmulas preferidas y a evitar, respetar el trato tú/usted del remitente, viñetas, y **negrita** solo para lo esencial.
    Si hace falta, usá `python tools.py faq` para ver toda la base.
 2. Para cada mail escribí la respuesta en español: usá la respuesta base de la FAQ que corresponda, pero **adaptala** al caso concreto
    (nombre del cliente, lo que pregunta exactamente y los datos que da; sacá lo que no aplica y respondé todas las preguntas del mail).
