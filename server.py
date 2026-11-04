@@ -63,16 +63,49 @@ def editar_config(con, q, cuerpo):
     return core.leer_config(con)
 
 
+# La sincronización corre en segundo plano y la interfaz consulta /api/sincronizar/estado para mostrar el avance.
+_sync = {"fase": "inactivo"}
+_sync_lock = threading.Lock()
+
+
+def _correr_sincronizacion():
+    def progreso(fase, actual=0, total=0):
+        with _sync_lock:
+            _sync.update(fase=fase, actual=actual, total=total)
+
+    con = core.conectar()
+    try:
+        r = core.sincronizar(con, progreso)
+        final = {"fase": "listo", "nuevos": r["nuevos"], "ids": r["ids"], "revisados": r["revisados"]}
+    except ValueError as e:
+        final = {"fase": "error", "error": str(e)}
+    except Exception as e:  # errores de red, login, certificado...
+        final = {"fase": "error", "error": f"No se pudo conectar al correo: {e}"}
+    finally:
+        con.close()
+    if final["fase"] == "error":
+        print(f"[{core.ahora()}] Error al traer mails: {final['error']}", flush=True)
+    with _sync_lock:
+        _sync.update(final, terminado=core.ahora())
+
+
 @ruta("POST", "/api/sincronizar")
 def sincronizar(con, q, cuerpo):
     if DEMO:
         raise ErrorApi("En el modo de ejemplo no se conecta al correo. Abrí iniciar.bat para usar tus mails reales.")
-    try:
-        return core.sincronizar(con)
-    except ValueError as e:
-        raise ErrorApi(str(e))
-    except Exception as e:  # errores de red, login, certificado...
-        raise ErrorApi(f"No se pudo conectar al correo: {e}", 502)
+    with _sync_lock:
+        if _sync["fase"] not in ("inactivo", "listo", "error"):
+            return dict(_sync)  # ya hay una en curso: se devuelve su estado
+        _sync.clear()
+        _sync.update(fase="conectando", actual=0, total=0, iniciado=core.ahora())
+    threading.Thread(target=_correr_sincronizacion, daemon=True).start()
+    return dict(_sync)
+
+
+@ruta("GET", "/api/sincronizar/estado")
+def estado_sincronizacion(con, q, cuerpo):
+    with _sync_lock:
+        return dict(_sync)
 
 
 # ---------------------------------------------------------------- IA (1min.ai)

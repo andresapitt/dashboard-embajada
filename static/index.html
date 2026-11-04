@@ -48,7 +48,7 @@
 
   /* Layout */
   --alto-header: 57px; --ancho-lista: 340px; --ancho-lateral: 360px;
-  --ancho-contenido: 1000px; --ancho-angosto: 680px;
+  --ancho-contenido: 1000px; --ancho-angosto: 680px; --ancho-progreso: 380px; --alto-progreso: 150px;
   --capa-header: 5; --capa-toast: 20;
 }
 @media (prefers-color-scheme: dark) {
@@ -241,6 +241,36 @@ dialog .botones { justify-content: flex-end; }
   padding: var(--esp-3) var(--esp-4); border-radius: var(--radio); opacity: 0; transition: opacity var(--transicion);
   pointer-events: none; z-index: var(--capa-toast); max-width: 90vw; font-weight: var(--peso-medio); }
 #toast.ver { opacity: 1; }
+body:has(#progreso:not([hidden])) #toast { bottom: calc(var(--alto-progreso) + var(--esp-6)); }
+
+/* ===================================================================== PROGRESO DE "TRAER MAILS" */
+.progreso { position: fixed; right: var(--esp-5); bottom: var(--esp-5); width: min(var(--ancho-progreso), calc(100vw - 2 * var(--esp-4)));
+  background: var(--panel); color: var(--texto); border: var(--filete-fuerte) solid var(--borde-fuerte); border-radius: var(--radio);
+  padding: var(--esp-4); z-index: var(--capa-toast); box-shadow: var(--sombra); }
+.progreso[hidden] { display: none; }
+.progreso-cabeza { display: flex; justify-content: space-between; align-items: center; gap: var(--esp-3); margin-bottom: var(--esp-3); }
+.progreso-titulo { font-size: var(--fs-xs); font-weight: var(--peso-fuerte); text-transform: uppercase; letter-spacing: var(--tracking-rotulo); }
+.pasos { list-style: none; margin: 0 0 var(--esp-3); padding: 0; display: flex; flex-wrap: wrap; gap: var(--esp-1) var(--esp-3);
+  font-size: var(--fs-xs); color: var(--suave); counter-reset: paso; }
+.pasos li { counter-increment: paso; display: flex; align-items: center; gap: var(--esp-1); }
+.pasos li::before { content: counter(paso); display: inline-flex; align-items: center; justify-content: center;
+  width: var(--esp-4); height: var(--esp-4); border: var(--filete) solid var(--borde-control); font-size: calc(var(--fs-xs) - 2px); font-weight: var(--peso-fuerte); }
+.pasos li.hecho { color: var(--texto); }
+.pasos li.hecho::before { content: "\2713"; background: var(--texto); border-color: var(--texto); color: var(--panel); }
+.pasos li.actual { color: var(--texto); font-weight: var(--peso-fuerte); }
+.pasos li.actual::before { background: var(--acento); border-color: var(--acento); color: var(--sobre-acento); }
+.pasos li.fallo { color: var(--peligro); font-weight: var(--peso-fuerte); }
+.pasos li.fallo::before { content: "!"; background: var(--peligro); border-color: var(--peligro); color: var(--sobre-peligro); }
+.barra-progreso { position: relative; height: var(--esp-1); background: var(--borde); overflow: hidden; }
+.barra-progreso span { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--acento); transition: width var(--transicion); }
+.barra-progreso.indeterminada span { width: 30%; animation: barra-ida-vuelta 1.2s ease-in-out infinite alternate; }
+.barra-progreso.error span { width: 100%; background: var(--peligro); }
+.barra-progreso.ok span { width: 100%; background: var(--ok); }
+@keyframes barra-ida-vuelta { from { left: 0; } to { left: 70%; } }
+@media (prefers-reduced-motion: reduce) { .barra-progreso.indeterminada span { animation: none; width: 100%; opacity: .4; } }
+.progreso-detalle { margin: var(--esp-2) 0 0; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.progreso-detalle.error { color: var(--peligro); }
+@media (max-width: 760px) { .progreso { right: var(--esp-4); bottom: var(--esp-4); } }
 #toast.error { background: var(--peligro); color: var(--sobre-peligro); }
 
 /* ===================================================================== RESPONSIVE */
@@ -458,6 +488,16 @@ dialog .botones { justify-content: flex-end; }
     </div>
   </form>
 </dialog>
+
+<div id="progreso" class="progreso" role="status" aria-live="polite" aria-labelledby="pr-titulo" hidden>
+  <div class="progreso-cabeza">
+    <span class="progreso-titulo" id="pr-titulo">Traer mails</span>
+    <button class="chico" id="pr-cerrar" title="Ocultar este panel (lo que esté en curso sigue igual)">Ocultar</button>
+  </div>
+  <ol class="pasos" id="pr-pasos"></ol>
+  <div class="barra-progreso" id="pr-barra" role="progressbar" aria-labelledby="pr-titulo"><span></span></div>
+  <p class="progreso-detalle" id="pr-detalle"></p>
+</div>
 
 <div id="toast"></div>
 
@@ -711,17 +751,20 @@ async function redactarIA(faqId) {
   }
 }
 
-// Redacta en segundo plano, uno por uno, los mails recién traídos
-async function redactarNuevos(ids) {
-  const b = $("#btn-sync");
+// Redacta, uno por uno, los mails recién traídos. Devuelve cuántos se redactaron y el error si lo hubo.
+async function redactarNuevos(ids, alAvanzar = () => {}) {
+  let hechos = 0;
   for (let i = 0; i < ids.length; i++) {
-    b.textContent = `Redactando ${i + 1}/${ids.length}…`;
+    alAvanzar(i, ids.length);
     try {
       const d = await api("POST", `/api/mails/${ids[i]}/ia`, {});
+      hechos++;
       if (st.mailId === ids[i] && !st.guardando) pintarDetalle(d);
-    } catch (e) { toast(e.message, true); break; }
+    } catch (e) { return { hechos, error: e.message }; }
     cargarEstado(); cargarLista();
   }
+  alAvanzar(ids.length, ids.length);
+  return { hechos, error: null };
 }
 
 function programarGuardado() {
@@ -749,18 +792,75 @@ async function cambiarEstado(estado) {
 }
 function refrescar() { cargarEstado(); cargarLista(); if (st.mailId) abrirMail(st.mailId); }
 
+/* ---------------- progreso de "Traer mails" ---------------- */
+const PASOS = [["conectando", "Conectar"], ["buscando", "Buscar"], ["descargando", "Descargar"], ["redactando", "Redactar con IA"], ["listo", "Listo"]];
+const espera = ms => new Promise(r => setTimeout(r, ms));
+let tOcultarProgreso;
+
+function pintarProgreso({ fase, actual = 0, total = 0, detalle = "", conIA = false, fallo = null }) {
+  const panel = $("#progreso");
+  clearTimeout(tOcultarProgreso);
+  panel.hidden = false;
+  const pasos = PASOS.filter(([f]) => f !== "redactando" || conIA);
+  const i = pasos.findIndex(([f]) => f === (fallo || fase));
+  $("#pr-pasos").innerHTML = pasos.map(([f, nombre], j) => {
+    const clase = fase === "error" && f === fallo ? "fallo" : j < i || fase === "listo" ? "hecho" : j === i ? "actual" : "";
+    return `<li class="${clase}"${j === i ? ' aria-current="step"' : ""}>${nombre}</li>`;
+  }).join("");
+  const barra = $("#pr-barra");
+  const determinada = (fase === "descargando" || fase === "redactando") && total > 0;
+  // "descargando" informa el mail que está bajando; la barra cuenta solo los terminados
+  const terminados = fase === "descargando" ? Math.max(actual - 1, 0) : actual;
+  barra.className = "barra-progreso" + (fase === "error" ? " error" : fase === "listo" ? " ok" : determinada ? "" : " indeterminada");
+  barra.querySelector("span").style.width = determinada ? `${Math.round(100 * terminados / total)}%` : "";
+  if (determinada) { barra.setAttribute("aria-valuemin", 0); barra.setAttribute("aria-valuemax", total); barra.setAttribute("aria-valuenow", terminados); }
+  else ["aria-valuemin", "aria-valuemax", "aria-valuenow"].forEach(a => barra.removeAttribute(a));
+  $("#pr-detalle").textContent = detalle;
+  $("#pr-detalle").className = "progreso-detalle" + (fase === "error" ? " error" : "");
+  // Al terminar bien se oculta solo; si hubo un error queda visible hasta que se cierre
+  if (fase === "listo") tOcultarProgreso = setTimeout(() => panel.hidden = true, 8000);
+}
+$("#pr-cerrar").onclick = () => { clearTimeout(tOcultarProgreso); $("#progreso").hidden = true; };
+
+const DETALLES = {
+  conectando: () => "Conectando con el correo…",
+  buscando: () => "Buscando mails en la bandeja…",
+  descargando: s => s.total ? `Descargando mail ${Math.max(s.actual, 1)} de ${s.total}…` : "No hay mails nuevos para descargar.",
+};
+
 $("#btn-sync").onclick = sincronizar;
 async function sincronizar() {
   const b = $("#btn-sync"); b.disabled = true; b.textContent = "Trayendo…";
+  const cfg = st.cfg || await api("GET", "/api/config").catch(() => ({}));
+  const keyActiva = cfg.ia_proveedor === "gemini" ? cfg.gemini_key_guardada : cfg.ia_key_guardada;
+  const conIA = cfg.ia_auto === "1" && !!keyActiva;
+  let ultima = "conectando";
   try {
-    const r = await api("POST", "/api/sincronizar");
-    toast(r.nuevos ? `${r.nuevos} mail(s) nuevo(s)` : "No hay mails nuevos");
+    pintarProgreso({ fase: "conectando", detalle: DETALLES.conectando(), conIA });
+    let s = await api("POST", "/api/sincronizar");
+    while (s.fase !== "listo" && s.fase !== "error") {
+      ultima = s.fase;
+      pintarProgreso({ ...s, detalle: (DETALLES[s.fase] || (() => ""))(s), conIA });
+      await espera(400);
+      s = await api("GET", "/api/sincronizar/estado");
+    }
+    if (s.fase === "error") throw new Error(s.error);
+
     if (st.vista !== "bandeja") irA("bandeja"); else refrescar();
-    const cfg = st.cfg || await api("GET", "/api/config");
-    const keyActiva = cfg.ia_proveedor === "gemini" ? cfg.gemini_key_guardada : cfg.ia_key_guardada;
-    if (r.ids?.length && cfg.ia_auto === "1" && keyActiva) await redactarNuevos(r.ids);
-  } catch (e) { toast(e.message, true); }
-  finally { b.disabled = false; b.textContent = "Traer mails"; }
+    const resumen = s.nuevos ? `${s.nuevos} ${s.nuevos === 1 ? "mail nuevo" : "mails nuevos"}` : "No hay mails nuevos";
+    let detalleIA = "";
+    if (s.ids?.length && conIA) {
+      ultima = "redactando";
+      const r = await redactarNuevos(s.ids, (i, n) => pintarProgreso({
+        fase: "redactando", actual: i, total: n, conIA,
+        detalle: i < n ? `${resumen}. Redactando con IA ${i + 1} de ${n}…` : `${resumen}. Redacción terminada.` }));
+      if (r.error) throw new Error(`${resumen}, pero la IA falló después de redactar ${r.hechos} de ${s.ids.length}: ${r.error}`);
+      detalleIA = ` · ${r.hechos} ${r.hechos === 1 ? "borrador redactado" : "borradores redactados"} con IA`;
+    }
+    pintarProgreso({ fase: "listo", conIA, detalle: `${resumen} (se revisaron ${s.revisados} de los últimos días)${detalleIA}.` });
+  } catch (e) {
+    pintarProgreso({ fase: "error", fallo: ultima, conIA, detalle: e.message });
+  } finally { b.disabled = false; b.textContent = "Traer mails"; }
 }
 
 $("#btn-pegar").onclick = () => { $("#form-pegar").reset(); $("#modal-pegar").showModal(); };

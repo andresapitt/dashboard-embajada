@@ -274,8 +274,15 @@ def _guardar_mensaje(con, crudo, uid_txt):
     return cur.lastrowid if cur.rowcount else None
 
 
-def sincronizar(con):
-    """Trae los mails recientes en modo solo lectura (no los marca como leídos)."""
+def _sin_progreso(fase, actual=0, total=0):
+    pass
+
+
+def sincronizar(con, progreso=_sin_progreso):
+    """Trae los mails recientes en modo solo lectura (no los marca como leídos).
+
+    progreso(fase, actual, total) se llama en cada etapa: "conectando", "buscando" y "descargando".
+    """
     cfg = leer_config(con, incluir_secretos=True)
     if not cfg.get("imap_usuario") or not cfg.get("imap_password"):
         raise ValueError("Falta configurar el usuario y la contraseña del correo (pestaña Configuración).")
@@ -286,8 +293,9 @@ def sincronizar(con):
         contexto.verify_mode = ssl.CERT_NONE
 
     desde = dt.date.today() - dt.timedelta(days=int(cfg.get("imap_dias") or 30))
+    progreso("conectando")
     if cfg.get("correo_metodo") != "imap":
-        return _sincronizar_rest(con, cfg, contexto, desde)
+        return _sincronizar_rest(con, cfg, contexto, desde, progreso)
     criterio = f"{desde.day:02d}-{_MESES[desde.month - 1]}-{desde.year}"
     carpeta = cfg.get("imap_carpeta") or "INBOX"
 
@@ -298,13 +306,15 @@ def sincronizar(con):
         typ, _ = M.select(f'"{carpeta}"', readonly=True)
         if typ != "OK":
             raise ValueError(f"No se encontró la carpeta '{carpeta}'.")
+        progreso("buscando")
         typ, data = M.uid("search", None, "SINCE", criterio)
         uids = data[0].split() if data and data[0] else []
         conocidos = {r["uid"] for r in con.execute("SELECT uid FROM mails WHERE origen='imap'")}
-        for uid in uids:
+        pendientes = [u for u in uids if f"{carpeta}:{u.decode()}" not in conocidos]
+        progreso("descargando", 0, len(pendientes))
+        for i, uid in enumerate(pendientes, 1):
             uid_txt = f"{carpeta}:{uid.decode()}"
-            if uid_txt in conocidos:
-                continue
+            progreso("descargando", i, len(pendientes))
             typ, partes = M.uid("fetch", uid, "(BODY.PEEK[])")
             crudo = next((p[1] for p in partes if isinstance(p, tuple)), None)
             if typ != "OK" or crudo is None:
@@ -320,7 +330,7 @@ def sincronizar(con):
     return {"nuevos": len(nuevos), "ids": nuevos, "revisados": len(uids)}
 
 
-def _sincronizar_rest(con, cfg, contexto, desde):
+def _sincronizar_rest(con, cfg, contexto, desde, progreso=_sin_progreso):
     """Lee la carpeta con la API REST de Zimbra (la misma puerta HTTPS que el webmail).
 
     Solo hace pedidos GET: no envía, no borra y no marca los mails como leídos.
@@ -343,15 +353,17 @@ def _sincronizar_rest(con, cfg, contexto, desde):
                 raise ValueError(f"No se encontró la carpeta '{carpeta}' en el correo.") from None
             raise
 
+    progreso("buscando")
     lista = json.loads(pedir(f"{base}/{ruta_carpeta}?fmt=json&limit=500") or b"{}")
     limite_ms = dt.datetime.combine(desde, dt.time()).timestamp() * 1000
     mensajes = [m for m in lista.get("m", []) if m.get("d", 0) >= limite_ms]
     conocidos = {r["uid"] for r in con.execute("SELECT uid FROM mails WHERE origen='imap'")}
+    pendientes = [m for m in sorted(mensajes, key=lambda x: x.get("d", 0)) if f"rest:{m['id']}" not in conocidos]
+    progreso("descargando", 0, len(pendientes))
     nuevos = []
-    for m in sorted(mensajes, key=lambda x: x.get("d", 0)):
+    for i, m in enumerate(pendientes, 1):
         uid_txt = f"rest:{m['id']}"
-        if uid_txt in conocidos:
-            continue
+        progreso("descargando", i, len(pendientes))
         nuevo = _guardar_mensaje(con, pedir(f"{base}/?id={urllib.parse.quote(str(m['id']))}"), uid_txt)
         if nuevo:
             nuevos.append(nuevo)
