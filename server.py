@@ -15,6 +15,7 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
+import agenda
 import aprendizaje
 import core
 import ia
@@ -126,6 +127,49 @@ def redactar_ia(con, q, cuerpo, mail_id):
         # Queda en la ventana negra para poder diagnosticarlo después
         print(f"[{core.ahora()}] Error de IA en el mail {mail_id}: {e}", flush=True)
         raise ErrorApi(str(e), 502)
+
+
+# ---------------------------------------------------------------- agenda
+
+@ruta("POST", r"/api/mails/(\d+)/agendar")
+def agendar(con, q, cuerpo, mail_id):
+    """Crea en Zimbra el turno que la IA verificó como libre (el operador lo confirma desde la interfaz)."""
+    if DEMO:
+        raise ErrorApi("En el modo de ejemplo no se agenda en Zimbra.")
+    mail_id = int(mail_id)
+    m = con.execute("SELECT * FROM mails WHERE id=?", (mail_id,)).fetchone()
+    b = con.execute("SELECT analisis FROM borradores WHERE mail_id=?", (mail_id,)).fetchone()
+    analisis = json.loads(b["analisis"]) if b and b["analisis"] else {}
+    info = analisis.get("agenda") or {}
+    if info.get("agendado"):
+        raise ErrorApi("Este turno ya está agendado en Zimbra.")
+    if info.get("estado") != "libre" or not info.get("turno"):
+        raise ErrorApi("No hay un turno verificado como libre para agendar.")
+    cfg = core.leer_config(con, incluir_secretos=True)
+    inicio = agenda.dt.datetime.fromisoformat(info["turno"]["inicio"])
+    try:
+        # Se vuelve a revisar justo antes de crear la cita: alguien pudo haber ocupado el horario
+        rev = agenda.revisar(cfg, inicio, info["minutos"])
+        if rev["estado"] != "libre":
+            info.update(estado="no_disponible", turno=None, alternativas=rev.get("alternativas", []),
+                        revisadas=[rev], aviso="El horario se ocupó después de redactar el borrador.")
+            analisis["agenda"] = info
+            con.execute("UPDATE borradores SET analisis=? WHERE mail_id=?", (json.dumps(analisis, ensure_ascii=False), mail_id))
+            con.commit()
+            raise ErrorApi(f"El {rev['descripcion']} ya no está libre: no se agendó. Volvé a redactar para ofrecer alternativas.", 409)
+        fin = agenda.dt.datetime.fromisoformat(rev["fin"])
+        titulo = f"Turno {info.get('categoria') or 'consular'}: {m['remitente'] or m['remitente_email'] or 'sin nombre'}"
+        detalle = f"Asunto del mail: {m['asunto']}\nEmail: {m['remitente_email'] or '-'}\nAgendado desde el dashboard de respuestas."
+        uid = agenda.crear_cita(cfg, inicio, fin, titulo, detalle)
+    except agenda.ErrorAgenda as e:
+        print(f"[{core.ahora()}] Error al agendar el mail {mail_id}: {e}", flush=True)
+        raise ErrorApi(str(e), 502)
+    info["agendado"] = {"uid": uid, "fecha": core.ahora(), "titulo": titulo}
+    analisis["agenda"] = info
+    con.execute("UPDATE borradores SET analisis=? WHERE mail_id=?", (json.dumps(analisis, ensure_ascii=False), mail_id))
+    con.commit()
+    print(f"[{core.ahora()}] Turno agendado en Zimbra: {rev['descripcion']} ({titulo})", flush=True)
+    return core.mail_completo(con, mail_id)
 
 
 # ---------------------------------------------------------------- aprendizaje

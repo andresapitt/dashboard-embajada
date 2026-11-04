@@ -105,6 +105,14 @@ CONFIG_DEFECTO = {
     "aprendizaje_ultimo_ejemplo": "0",
     "aprendizaje_resumen": "",
     "aprendizaje_fecha": "",
+    # Agenda de turnos (se consulta el libre/ocupado de Zimbra antes de confirmar un turno)
+    "agenda_activa": "1",
+    "agenda_dias": "1,2,3,4,5",  # 1 = lunes ... 7 = domingo
+    "agenda_desde": "09:00",
+    "agenda_hasta": "13:00",
+    "agenda_duracion": "30",  # minutos, si la categoría del trámite no tiene una propia
+    "agenda_duraciones": '{"Poderes": 60, "Nacionalidad": 120}',  # JSON {categoría de FAQ: minutos}
+    "agenda_reserva_diaria": "30",  # minutos que siempre tienen que quedar libres en el día
 }
 
 # Claves que se guardan cifradas y nunca se devuelven a la interfaz
@@ -287,10 +295,7 @@ def sincronizar(con, progreso=_sin_progreso):
     if not cfg.get("imap_usuario") or not cfg.get("imap_password"):
         raise ValueError("Falta configurar el usuario y la contraseña del correo (pestaña Configuración).")
 
-    contexto = ssl.create_default_context()
-    if cfg.get("imap_verificar_ssl") != "1":
-        contexto.check_hostname = False
-        contexto.verify_mode = ssl.CERT_NONE
+    contexto = contexto_ssl(cfg)
 
     desde = dt.date.today() - dt.timedelta(days=int(cfg.get("imap_dias") or 30))
     progreso("conectando")
@@ -330,31 +335,54 @@ def sincronizar(con, progreso=_sin_progreso):
     return {"nuevos": len(nuevos), "ids": nuevos, "revisados": len(uids)}
 
 
+def contexto_ssl(cfg):
+    contexto = ssl.create_default_context()
+    if cfg.get("imap_verificar_ssl") != "1":
+        contexto.check_hostname = False
+        contexto.verify_mode = ssl.CERT_NONE
+    return contexto
+
+
+def zimbra(cfg, ruta, metodo="GET", datos=None, tipo=None, contexto=None):
+    """Pedido a la API REST de Zimbra (https://<servidor>/home/~<ruta>). cfg debe incluir la contraseña."""
+    if not cfg.get("imap_usuario") or not cfg.get("imap_password"):
+        raise ValueError("Falta configurar el usuario y la contraseña del correo (pestaña Configuración).")
+    url = f"https://{cfg['imap_host'].strip().rstrip('/')}/home/~{ruta}"
+    auth = "Basic " + base64.b64encode(f"{cfg['imap_usuario']}:{cfg['imap_password']}".encode("utf-8")).decode("ascii")
+    headers = {"Authorization": auth, "User-Agent": "DashboardMails"}
+    if tipo:
+        headers["Content-Type"] = tipo
+    req = urllib.request.Request(url, data=datos, method=metodo, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=60, context=contexto or contexto_ssl(cfg)) as r:
+            return r.read()
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            raise ValueError("El correo rechazó el usuario o la contraseña. Revisalos en Configuración "
+                             "(probá con el correo completo, ej. usuario@mrecic.gov.ar).") from None
+        if e.code == 404:
+            raise ValueError("Zimbra no encontró la carpeta pedida.") from None
+        raise
+
+
 def _sincronizar_rest(con, cfg, contexto, desde, progreso=_sin_progreso):
     """Lee la carpeta con la API REST de Zimbra (la misma puerta HTTPS que el webmail).
 
     Solo hace pedidos GET: no envía, no borra y no marca los mails como leídos.
     """
-    base = f"https://{cfg['imap_host'].strip().rstrip('/')}/home/~"
     carpeta = cfg.get("imap_carpeta") or "INBOX"
     ruta_carpeta = "inbox" if carpeta.upper() == "INBOX" else urllib.parse.quote(carpeta.strip("/"))
-    auth = "Basic " + base64.b64encode(f"{cfg['imap_usuario']}:{cfg['imap_password']}".encode("utf-8")).decode("ascii")
 
-    def pedir(url):
-        req = urllib.request.Request(url, headers={"Authorization": auth, "User-Agent": "DashboardMails"})
+    def pedir(ruta):
         try:
-            with urllib.request.urlopen(req, timeout=60, context=contexto) as r:
-                return r.read()
-        except urllib.error.HTTPError as e:
-            if e.code in (401, 403):
-                raise ValueError("El correo rechazó el usuario o la contraseña. Revisalos en Configuración "
-                                 "(probá con el correo completo, ej. usuario@mrecic.gov.ar).") from None
-            if e.code == 404:
+            return zimbra(cfg, ruta, contexto=contexto)
+        except ValueError as e:
+            if "carpeta" in str(e):
                 raise ValueError(f"No se encontró la carpeta '{carpeta}' en el correo.") from None
             raise
 
     progreso("buscando")
-    lista = json.loads(pedir(f"{base}/{ruta_carpeta}?fmt=json&limit=500") or b"{}")
+    lista = json.loads(pedir(f"/{ruta_carpeta}?fmt=json&limit=500") or b"{}")
     limite_ms = dt.datetime.combine(desde, dt.time()).timestamp() * 1000
     mensajes = [m for m in lista.get("m", []) if m.get("d", 0) >= limite_ms]
     conocidos = {r["uid"] for r in con.execute("SELECT uid FROM mails WHERE origen='imap'")}
@@ -364,7 +392,7 @@ def _sincronizar_rest(con, cfg, contexto, desde, progreso=_sin_progreso):
     for i, m in enumerate(pendientes, 1):
         uid_txt = f"rest:{m['id']}"
         progreso("descargando", i, len(pendientes))
-        nuevo = _guardar_mensaje(con, pedir(f"{base}/?id={urllib.parse.quote(str(m['id']))}"), uid_txt)
+        nuevo = _guardar_mensaje(con, pedir(f"/?id={urllib.parse.quote(str(m['id']))}"), uid_txt)
         if nuevo:
             nuevos.append(nuevo)
     return {"nuevos": len(nuevos), "ids": nuevos, "revisados": len(mensajes)}

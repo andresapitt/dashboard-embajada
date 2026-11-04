@@ -21,6 +21,16 @@ El modelo elige la plantilla de FAQ, la adapta y devuelve JSON (`faq_id`, `confi
 Las API keys se cargan en Configuración y quedan cifradas con DPAPI (`ia_key` y `gemini_key`, igual que la contraseña). Nunca las leas ni las muestres.
 La IA responde en el idioma del mail, porque algunas plantillas de visas están en inglés.
 
+## Agenda de turnos (`agenda.py`)
+
+- Al redactar, si el mail tiene pistas de turno/día/hora, la IA extrae las opciones pedidas (`SISTEMA_TURNO`) y se consulta el
+  libre/ocupado de Zimbra (`GET /home/~/?fmt=ifb`, solo horarios, sin el contenido de las citas).
+- Reglas (Configuración): lunes a viernes de `agenda_desde` a `agenda_hasta`; duración por categoría de FAQ en `agenda_duraciones`
+  (Poderes 60, Nacionalidad 120, el resto `agenda_duracion` = 30); al día siempre le tienen que quedar `agenda_reserva_diaria` (30) minutos libres.
+- Si está libre, la IA lo confirma; si no, ofrece alternativas. El resultado queda en `borradores.analisis.agenda`.
+- Agendar (`POST /api/mails/<id>/agendar`) lo confirma el operador. Vuelve a revisar que esté libre y crea la cita con
+  `POST /home/~/calendar?fmt=ics`, **sin ATTENDEE ni ORGANIZER**, para que Zimbra no le mande nada a nadie.
+
 ## Aprendizaje (`aprendizaje.py`, pestaña Aprendizaje)
 
 - Al marcar un mail como respondido, `registrar()` guarda en la tabla `ejemplos` la versión final enviada, más el borrador original de la IA

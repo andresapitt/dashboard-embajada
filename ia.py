@@ -133,7 +133,8 @@ Tu tarea para cada correo:
    - NO inventes requisitos, costos, plazos, horarios, direcciones, teléfonos ni links que no estén en las plantillas. Si una pregunta no está cubierta, escribí un marcador visible [COMPLETAR: qué falta] en el lugar correspondiente.
 4. IDIOMA: respondé en el mismo idioma en que está escrito el correo (por ejemplo, si escriben en inglés, respondé en inglés). Si la plantilla elegida está en otro idioma, traducila con cuidado, sin cambiar requisitos, montos, plazos ni links. Si no se puede determinar el idioma, usá español.
 5. Usá el tono indicado y terminá con la firma si se te da una, tal cual (no la traduzcas ni agregues otra despedida duplicada).
-6. Si se te dan PREFERENCIAS APRENDIDAS del operador, seguilas siempre: son la forma en que él corrige los borradores. Si se te dan EJEMPLOS de respuestas que ya envió, imitá su estilo, estructura y nivel de detalle, pero NUNCA copies de ellos nombres, fechas, números ni datos personales; los datos oficiales salen siempre de las plantillas.
+6. TURNOS: nunca confirmes un turno, día u horario por tu cuenta. Solo confirmalo si el bloque AGENDA dice que está LIBRE o YA AGENDADO, y con exactamente ese día y esa hora. Si la AGENDA dice que no está disponible, no lo confirmes y ofrecé las alternativas que indica.
+7. Si se te dan PREFERENCIAS APRENDIDAS del operador, seguilas siempre: son la forma en que él corrige los borradores. Si se te dan EJEMPLOS de respuestas que ya envió, imitá su estilo, estructura y nivel de detalle, pero NUNCA copies de ellos nombres, fechas, números ni datos personales; los datos oficiales salen siempre de las plantillas.
 
 Devolvé SOLO un objeto JSON con esta forma (los campos "motivo", "consultas" y "pendientes" siempre en español, porque los lee el operador):
 {"faq_id": <id de la plantilla principal o null>, "faq_ids_secundarias": [<ids>], "idioma": "<idioma de la respuesta, ej. español o inglés>", "confianza": "alta" | "media" | "baja", "motivo": "<una oración: por qué elegiste esa plantilla>", "consultas": ["<cada consulta detectada>"], "pendientes": ["<lo que quedó como [COMPLETAR]>"], "respuesta": "<texto completo del correo de respuesta>"}"""
@@ -192,7 +193,8 @@ def completar_json(con, sistema, usuario, max_tokens=8000):
 
 def redactar(con, mail_id, instruccion=None, faq_forzada=None):
     """Genera y guarda el borrador de un mail. Devuelve el mail completo con el análisis."""
-    import aprendizaje  # importación local: aprendizaje usa este módulo
+    import agenda  # importaciones locales: los dos módulos usan este
+    import aprendizaje
 
     mail = con.execute("SELECT * FROM mails WHERE id=?", (mail_id,)).fetchone()
     if not mail:
@@ -213,6 +215,20 @@ def redactar(con, mail_id, instruccion=None, faq_forzada=None):
         usuario.append(f"INDICACIÓN DEL OPERADOR PARA ESTE CASO: {instruccion.strip()}")
     if faq_forzada:
         usuario.append(f"El operador eligió la plantilla id {faq_forzada}: usala como principal.")
+
+    # Agenda: si el mail propone un día y una hora, se revisa el calendario antes de confirmar
+    anterior = con.execute("SELECT analisis FROM borradores WHERE mail_id=?", (mail_id,)).fetchone()
+    anterior = json.loads(anterior["analisis"]).get("agenda") if anterior and anterior["analisis"] else None
+    if anterior and anterior.get("agendado"):
+        info_agenda = anterior  # ya se agendó: no se vuelve a revisar, se confirma ese turno
+        usuario.append(f"AGENDA: el turno del {anterior['turno']['descripcion']} YA ESTÁ AGENDADO: confirmalo.")
+    else:
+        try:
+            info_agenda = agenda.analizar_mail(con, mail)
+        except (agenda.ErrorAgenda, ErrorIA) as e:
+            info_agenda = {"error": str(e)}
+        if info_agenda:
+            usuario.append(agenda.instruccion_para_ia(info_agenda))
     preferencias = [l.strip(" -•\t") for l in (cfg.get("preferencias") or "").splitlines() if l.strip(" -•\t")]
     if preferencias:
         usuario.append("PREFERENCIAS APRENDIDAS DEL OPERADOR (seguilas siempre):\n" + "\n".join(f"- {l}" for l in preferencias))
@@ -254,6 +270,7 @@ def redactar(con, mail_id, instruccion=None, faq_forzada=None):
         "motivo": datos.get("motivo"),
         "consultas": datos.get("consultas") or [],
         "pendientes": datos.get("pendientes") or [],
+        "agenda": info_agenda,
     }
     core.guardar_borrador(con, mail_id, texto, ids, autor="ia", analisis=analisis)
     if mail["estado"] == "pedido":

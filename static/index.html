@@ -48,7 +48,7 @@
 
   /* Layout */
   --alto-header: 57px; --ancho-lista: 340px; --ancho-lateral: 360px;
-  --ancho-contenido: 1000px; --ancho-angosto: 680px; --ancho-progreso: 380px; --alto-progreso: 150px;
+  --ancho-contenido: 1000px; --ancho-angosto: 680px; --ancho-progreso: 380px; --alto-progreso: 150px; --ancho-campo-corto: 110px;
   --capa-header: 5; --capa-toast: 20;
 }
 @media (prefers-color-scheme: dark) {
@@ -109,6 +109,7 @@ label.check-inline { font-weight: var(--peso-normal); font-size: var(--fs-base);
 .ayuda.intro { margin-top: 0; }
 .ayuda.ok { color: var(--ok); }
 .fila-control { display: flex; gap: var(--esp-2); }
+.fila-control > div { flex: 1; min-width: 0; }
 
 /* ===================================================================== CABECERA Y NAVEGACIÓN */
 header { display: flex; align-items: center; gap: var(--esp-5); padding: 0 var(--esp-5); min-height: var(--alto-header);
@@ -192,6 +193,12 @@ header .derecha { margin-left: auto; display: flex; align-items: center; gap: va
 .analisis { background: var(--bg); border-left: var(--filete-acento) solid var(--acento); border-radius: var(--radio);
   padding: var(--esp-2) var(--esp-3); margin-bottom: var(--esp-3); font-size: var(--fs-sm); }
 .analisis .etiqueta { margin-left: var(--esp-1); }
+.agenda { margin-top: var(--esp-2); padding: var(--esp-2) var(--esp-3); border-left: var(--filete-acento) solid; }
+.agenda.si { background: var(--ok-suave); border-color: var(--ok); }
+.agenda.no { background: var(--aviso-suave); border-color: var(--aviso); }
+.agenda > div { margin-top: var(--esp-1); }
+.duraciones { display: grid; grid-template-columns: minmax(0, 1fr) var(--ancho-campo-corto); gap: var(--esp-2) var(--esp-3); align-items: center; margin-top: var(--esp-2); }
+.duraciones label { margin: 0; font-weight: var(--peso-normal); font-size: var(--fs-base); }
 .nota { border-left: var(--filete-acento) solid var(--texto); padding: var(--esp-1) var(--esp-3); margin-bottom: var(--esp-3); white-space: pre-wrap; }
 .nota .cuando { color: var(--suave); font-size: var(--fs-xs); display: flex; justify-content: space-between; }
 .nota .cuando a { color: var(--suave); text-decoration: none; padding: 0 var(--esp-1); }
@@ -438,6 +445,20 @@ body:has(#progreso:not([hidden])) #toast { bottom: calc(var(--alto-progreso) + v
       </div>
       <label class="check-inline"><input type="checkbox" name="ia_auto"> Redactar automáticamente con IA los mails nuevos al traerlos</label>
 
+      <h3 class="seccion">Agenda de turnos</h3>
+      <p class="ayuda intro">Si un mail propone un día y una hora, antes de redactar se consulta qué horarios están ocupados en tu agenda de Zimbra
+        (sin leer el contenido de las citas). La respuesta confirma el turno solo si está libre; si no, ofrece alternativas.</p>
+      <label class="check-inline"><input type="checkbox" name="agenda_activa"> Revisar la agenda al redactar</label>
+      <div class="fila-control">
+        <div><label for="ag-desde">Atención desde</label><input type="text" id="ag-desde" name="agenda_desde" placeholder="09:00" pattern="\d{2}:\d{2}"></div>
+        <div><label for="ag-hasta">hasta</label><input type="text" id="ag-hasta" name="agenda_hasta" placeholder="13:00" pattern="\d{2}:\d{2}"></div>
+      </div>
+      <p class="ayuda">De lunes a viernes. Las horas en formato 24 h (ej. 09:00).</p>
+      <label for="ag-reserva">Minutos que siempre quedan libres en cada día</label>
+      <input type="number" id="ag-reserva" name="agenda_reserva_diaria" min="0" step="15">
+      <label>Duración de cada turno, según el trámite (minutos)</label>
+      <div class="duraciones" id="ag-duraciones"></div>
+
       <h3 class="seccion">Estilo de las respuestas</h3>
       <label>Firma <span class="ayuda">(se agrega al final de los borradores)</span></label>
       <textarea name="firma" rows="4"></textarea>
@@ -596,6 +617,39 @@ async function abrirMail(id) {
   pintarDetalle(await api("GET", "/api/mails/" + id));
 }
 
+// Bloque "Agenda" dentro del análisis del borrador
+const ESTADO_TURNO = { libre: "libre", ocupado: "ocupado", fuera_de_horario: "fuera del horario de atención",
+  pasado: "fecha ya pasada", sin_hora: "sin hora", dia_completo: "día completo (se reserva tiempo libre)" };
+function agendaHtml(ag) {
+  if (!ag) return "";
+  if (ag.error) return `<div class="agenda no"><b>Agenda:</b> no se pudo consultar (${esc(ag.error)}). El borrador no confirma ningún turno.</div>`;
+  const pedidos = ag.revisadas.map(x => `${x.pedido ? `pidió ${esc(x.pedido)} → ` : ""}${esc(x.descripcion)}: <b>${esc(ESTADO_TURNO[x.estado] || x.estado)}</b>`).join(" · ");
+  const dur = `${ag.categoria ? esc(ag.categoria) + ", " : ""}${ag.minutos} min`;
+  if (ag.agendado) return `<div class="agenda si"><b>Agenda:</b> turno del ${esc(ag.turno.descripcion)} (${dur}) <b>agendado en Zimbra</b> · ${fecha(ag.agendado.fecha)}</div>`;
+  if (ag.estado === "libre") return `<div class="agenda si"><b>Agenda:</b> ${pedidos} (${dur}). El borrador confirma el turno.
+      <div class="acciones separada"><button class="chico primario" id="btn-agendar">Agendar en Zimbra</button>
+      <span class="ayuda">Se crea la cita sin invitados: Zimbra no le avisa nada al cliente.</span></div></div>`;
+  return `<div class="agenda no"><b>Agenda:</b> ${pedidos} (${dur}). No se confirma.
+      ${ag.aviso ? `<div>${esc(ag.aviso)}</div>` : ""}
+      ${ag.alternativas?.length ? `<div>Alternativas ofrecidas: ${ag.alternativas.map(a => esc(a.descripcion)).join(" · ")}</div>` : "<div>No se encontraron horarios libres cercanos.</div>"}</div>`;
+}
+
+async function agendarTurno(preguntar = false) {
+  const ag = st.detalle?.borrador?.analisis?.agenda;
+  if (!ag || ag.estado !== "libre" || ag.agendado) return null;
+  if (preguntar && !confirm(`¿Agendar en Zimbra el turno del ${ag.turno.descripcion}?\n\nRevisá que el horario del mail que vas a enviar sea ese.`)) return null;
+  await guardarYa();
+  try {
+    const d = await api("POST", `/api/mails/${st.detalle.mail.id}/agendar`);
+    pintarDetalle(d);
+    return true;
+  } catch (e) {
+    toast(e.message, true);
+    await abrirMail(st.detalle.mail.id);  // el estado de la agenda pudo cambiar (por ejemplo, el horario se ocupó)
+    return false;
+  }
+}
+
 function pintarDetalle(d) {
   st.detalle = d;
   const m = d.mail;
@@ -610,6 +664,7 @@ function pintarDetalle(d) {
         <span class="ayuda">· ${an.idioma ? esc(an.idioma) + " · " : ""}${esc(an.modelo)}</span>
         ${an.ejemplos_usados || an.preferencias_usadas ? `<span class="ayuda" title="Lo que aprendió de tus respuestas anteriores">· usó ${an.ejemplos_usados || 0} ejemplo(s) tuyo(s) y ${an.preferencias_usadas || 0} preferencia(s)</span>` : ""}</div>
       ${an.motivo ? `<div class="ayuda">${esc(an.motivo)}</div>` : ""}
+      ${agendaHtml(an.agenda)}
       ${an.pendientes?.length ? `<div class="aviso en-linea">Revisar antes de enviar: ${an.pendientes.map(esc).join(" · ")}</div>` : ""}
     </div>` : "";
   $("#detalle").innerHTML = `
@@ -677,7 +732,13 @@ function pintarDetalle(d) {
   const ed = $("#editor");
   ed.oninput = () => programarGuardado();
   $("#btn-copiar").onclick = async () => { await guardarYa(); await copiar(ed.value); toast("Copiado. Pegalo en tu respuesta del correo."); };
-  $("#btn-copiar-resp").onclick = async () => { await guardarYa(); await copiar(ed.value); await cambiarEstado("respondido"); toast("Copiado y marcado como respondido."); };
+  $("#btn-copiar-resp").onclick = async () => {
+    await guardarYa(); await copiar(ed.value);
+    const agendado = await agendarTurno(true);  // si el borrador confirma un turno libre, pregunta si agendarlo
+    await cambiarEstado("respondido");
+    toast("Copiado y marcado como respondido." + (agendado ? " Turno agendado en Zimbra." : agendado === false ? " El turno NO se agendó." : ""), agendado === false);
+  };
+  if ($("#btn-agendar")) $("#btn-agendar").onclick = async () => { if (await agendarTurno(true)) toast("Turno agendado en Zimbra."); };
   $("#btn-a-faq").onclick = () => abrirFaq(null, { pregunta: m.asunto, respuesta: ed.value });
   $("#btn-recargar").onclick = () => abrirMail(m.id).then(() => toast("Actualizado"));
   $("#btn-ia").onclick = () => redactarIA();
@@ -1003,6 +1064,9 @@ async function cargarConfig() {
   f.imap_password.placeholder = c.imap_password_guardada ? "•••••••• (guardada; dejá vacío para no cambiarla)" : "";
   $("#pw-ayuda").textContent = c.imap_password_guardada ? "✓ guardada (por seguridad no se muestra)" : "";
   $("#pw-ayuda").classList.toggle("ok", !!c.imap_password_guardada);
+  f.agenda_activa.checked = c.agenda_activa === "1";
+  for (const k of ["agenda_desde", "agenda_hasta", "agenda_reserva_diaria"]) f[k].value = c[k] ?? "";
+  await pintarDuraciones(c);
   f.ia_proveedor.value = c.ia_proveedor || "1min";
   marcarProveedor();
   for (const [prov, key] of Object.entries(PROV_KEY)) {
@@ -1044,9 +1108,26 @@ async function cargarModelos(prov) {
 document.querySelectorAll("[data-btn-modelos]").forEach(b => b.onclick = async () => {
   try { await guardarConfig(); toast("Lista de modelos actualizada"); } catch (e) { toast(e.message, true); }
 });
+// Una fila por categoría de las preguntas frecuentes, más "otros trámites" (la duración por defecto)
+async function pintarDuraciones(c) {
+  let guardadas = {};
+  try { guardadas = JSON.parse(c.agenda_duraciones || "{}"); } catch {}
+  const faqs = await api("GET", "/api/faq").catch(() => []);
+  const cats = [...new Set([...faqs.map(x => x.categoria).filter(Boolean), ...Object.keys(guardadas)])].sort();
+  const fila = (id, nombre, valor, cat) => `<label for="${id}">${esc(nombre)}</label>
+    <input type="number" id="${id}" min="15" step="15" value="${esc(valor)}" ${cat != null ? `data-categoria="${esc(cat)}"` : 'name="agenda_duracion"'}>`;
+  $("#ag-duraciones").innerHTML = cats.map((cat, i) => fila("dur-" + i, cat, guardadas[cat] ?? c.agenda_duracion, cat)).join("")
+    + fila("dur-otros", "Otros trámites", c.agenda_duracion, null);
+}
+
 async function guardarConfig() {
   const f = $("#form-config");
   const datos = Object.fromEntries(new FormData(f));
+  datos.agenda_activa = f.agenda_activa.checked ? "1" : "0";
+  const porDefecto = +datos.agenda_duracion || 30, duraciones = {};
+  // Solo se guardan las categorías que difieren de la duración por defecto
+  document.querySelectorAll("#ag-duraciones [data-categoria]").forEach(i => { if (+i.value && +i.value !== porDefecto) duraciones[i.dataset.categoria] = +i.value; });
+  datos.agenda_duraciones = JSON.stringify(duraciones);
   datos.imap_verificar_ssl = f.imap_verificar_ssl.checked ? "1" : "0";
   datos.ia_auto = f.ia_auto.checked ? "1" : "0";
   await api("PUT", "/api/config", datos);
