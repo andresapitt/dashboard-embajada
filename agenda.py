@@ -46,9 +46,9 @@ def duracion(r, categoria):
     return r["duraciones"].get(categoria or "", r["duracion"])
 
 
-def describir(inicio, fin=None):
-    texto = f"{NOMBRE_DIA[inicio.weekday()]} {inicio:%d/%m} a las {inicio:%H:%M}"
-    return texto + (f" (hasta las {fin:%H:%M})" if fin else "")
+def describir(inicio):
+    """Día y hora de comienzo. A propósito no incluye la duración: al cliente solo se le informa a qué hora empieza."""
+    return f"{NOMBRE_DIA[inicio.weekday()]} {inicio:%d/%m} a las {inicio:%H:%M}"
 
 
 # ---------------------------------------------------------------- Zimbra
@@ -106,7 +106,7 @@ def revisar(cfg, inicio, minutos):
     fin = inicio + dt.timedelta(minutes=minutos)
     ahora = dt.datetime.now().astimezone()
     resultado = {"inicio": inicio.isoformat(timespec="minutes"), "fin": fin.isoformat(timespec="minutes"),
-                 "minutos": minutos, "descripcion": describir(inicio, fin)}
+                 "minutos": minutos, "descripcion": describir(inicio)}
     bloques = ocupado(cfg, min(inicio, ahora).replace(hour=0, minute=0),
                       inicio + dt.timedelta(days=DIAS_ALTERNATIVAS * 2))
     if inicio < ahora:
@@ -296,7 +296,9 @@ def instruccion_para_ia(info):
         + f" → {ESTADOS.get(x['estado'], x['estado'])}" for x in info["revisadas"])
     if info["estado"] == "libre":
         return (f"AGENDA (consultada en el calendario de la embajada): {pedidos}. "
-                f"El turno del {info['turno']['descripcion']} ESTÁ LIBRE: confirmalo explícitamente con ese día y esa hora.")
+                f"El turno del {info['turno']['descripcion']} ESTÁ LIBRE: confirmalo explícitamente con ese día y esa hora, "
+                "de forma natural (ej. \"el miércoles 11/11 a las 10:00\"). No menciones cuánto dura ni a qué hora termina, "
+                "y no aclares que es la hora de inicio.")
     alts = "; ".join(a["descripcion"] for a in info["alternativas"]) or "(no se encontraron horarios libres en los próximos días)"
     return (f"AGENDA (consultada en el calendario de la embajada): {pedidos}. NO confirmes el horario pedido "
             f"porque no está disponible. Explicalo con amabilidad y ofrecé estas alternativas libres: {alts}. "
