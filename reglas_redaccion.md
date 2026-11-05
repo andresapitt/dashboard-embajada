@@ -146,3 +146,4 @@ La prioridad es que el destinatario entienda rápidamente qué le estamos comuni
 11. REQUISITOS CONFIRMADOS
 Estos requisitos están confirmados y se pueden informar aunque no figuren en la respuesta base:
 * Cuando la persona no tiene DNI, debe presentar la partida de nacimiento expedida por el Registro Civil correspondiente.
+* Visas: como regla, las solicitudes de visa no se consideran con más de 3 meses de anticipación a la fecha prevista de viaje a la Argentina. En inglés: "As a rule, visa applications will not be considered earlier than 3 months from the intended travel date to Argentina."
