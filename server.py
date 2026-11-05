@@ -132,7 +132,8 @@ def redactar_ia(con, q, cuerpo, mail_id):
         con.execute("UPDATE mails SET instruccion=? WHERE id=?", (cuerpo["instruccion"], int(mail_id)))
         con.commit()
     try:
-        return ia.redactar(con, int(mail_id), faq_forzada=cuerpo.get("faq_id"))
+        return ia.redactar(con, int(mail_id), faq_forzada=cuerpo.get("faq_id"),
+                           ofrecer=bool(cuerpo.get("ofrecer_turno")), categoria=cuerpo.get("categoria") or None)
     except ia.ErrorIA as e:
         # Queda en la ventana negra para poder diagnosticarlo después
         print(f"[{core.ahora()}] Error de IA en el mail {mail_id}: {e}", flush=True)
@@ -140,6 +141,22 @@ def redactar_ia(con, q, cuerpo, mail_id):
 
 
 # ---------------------------------------------------------------- agenda
+
+@ruta("GET", "/api/agenda")
+def ver_agenda(con, q, cuerpo):
+    """Semana de la agenda de Zimbra (?desde=AAAA-MM-DD; por defecto, la semana actual)."""
+    if DEMO:
+        raise ErrorApi("En el modo de ejemplo no se conecta a la agenda de Zimbra.")
+    try:
+        dia = agenda.dt.date.fromisoformat(q.get("desde", [""])[0]) if q.get("desde") else agenda.dt.date.today()
+    except ValueError:
+        raise ErrorApi("Fecha inválida.")
+    lunes = agenda.dt.datetime.combine(dia - agenda.dt.timedelta(days=dia.weekday()), agenda.dt.time()).astimezone()
+    try:
+        return agenda.semana(core.leer_config(con, incluir_secretos=True), lunes)
+    except (agenda.ErrorAgenda, ValueError) as e:
+        raise ErrorApi(str(e), 502)
+
 
 @ruta("POST", r"/api/mails/(\d+)/agendar")
 def agendar(con, q, cuerpo, mail_id):

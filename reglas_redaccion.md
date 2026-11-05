@@ -83,6 +83,7 @@ Cuando se redacten correos sobre trámites consulares:
 * Indicar si los documentos deben ser originales, copias, escaneados o apostillados.
 * Especificar los pasos que debe seguir el interesado.
 * Indicar si es necesario solicitar un turno.
+* No solicitar la confirmación de un turno cuando en el correo no se ofrece una fecha y una hora concretas.
 * Informar sobre aranceles y plazos cuando corresponda.
 * No agregar requisitos que no hayan sido indicados o confirmados.
 * No asumir que un trámite puede realizarse de determinada manera si no se ha proporcionado esa información.

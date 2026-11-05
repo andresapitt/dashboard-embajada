@@ -154,6 +154,72 @@ def alternativas(r, desde, minutos, bloques, cantidad=3):
     return opciones
 
 
+def citas(cfg, desde, hasta):
+    """Citas del calendario (carpeta 10) entre dos fechas, con título y lugar, para la pestaña Agenda.
+
+    Usa SearchRequest por SOAP, que expande las citas repetidas en cada aparición.
+    """
+    pedido = {"SearchRequest": {"_jsns": "urn:zimbraMail", "types": "appointment", "query": "inid:10", "limit": 1000,
+                                "calExpandInstStart": int(desde.timestamp() * 1000),
+                                "calExpandInstEnd": int(hasta.timestamp() * 1000)}}
+    try:
+        r = core.zimbra_soap(cfg, pedido)
+    except ValueError as e:
+        raise ErrorAgenda(str(e)) from None
+    except Exception as e:
+        raise ErrorAgenda(f"No se pudo leer la agenda de Zimbra: {e}") from None
+    lista = []
+    for a in r.get("SearchResponse", {}).get("appt", []):
+        for inst in a.get("inst", []):
+            inicio = dt.datetime.fromtimestamp(inst["s"] / 1000).astimezone()
+            fin = inicio + dt.timedelta(milliseconds=inst.get("dur", a.get("dur", 0)))
+            lista.append({
+                "id": f"{a.get('id')}-{inst.get('ridZ', inst['s'])}",
+                "titulo": a.get("name") or "(sin título)",
+                "lugar": a.get("loc") or "",
+                "inicio": inicio.isoformat(timespec="minutes"),
+                "fin": fin.isoformat(timespec="minutes"),
+                "todo_el_dia": bool(a.get("allDay")),
+                "ocupa": a.get("fb", "B") in ("B", "O"),  # "F" (libre) y "T" (tentativo) no bloquean turnos
+                "del_dashboard": str(a.get("uid", "")).startswith("dashboard-") or (a.get("name") or "").startswith("Turno "),
+            })
+    return sorted(lista, key=lambda c: c["inicio"])
+
+
+def semana(cfg, lunes):
+    """Datos de la pestaña Agenda para la semana que empieza en `lunes`: citas, horario y lugar libre de cada día."""
+    r = reglas(cfg)
+    fin = lunes + dt.timedelta(days=7)
+    lista = citas(cfg, lunes, fin)
+    bloques = ocupado(cfg, lunes, fin)  # mismo criterio que al confirmar turnos
+    dias = []
+    for i in range(7):
+        dia = lunes + dt.timedelta(days=i)
+        atiende = dia.isoweekday() in r["dias"]
+        libres = minutos_libres_del_dia(r, dia, bloques) if atiende else 0
+        dias.append({"fecha": dia.date().isoformat(), "nombre": NOMBRE_DIA[dia.weekday()], "atiende": atiende,
+                     "minutos_libres": int(libres), "disponibles": int(max(libres - r["reserva"], 0)) if atiende else 0})
+    return {"desde": lunes.date().isoformat(), "dias": dias, "citas": lista,
+            "horario": {"desde": r["desde"].strftime("%H:%M"), "hasta": r["hasta"].strftime("%H:%M"), "reserva": r["reserva"]}}
+
+
+def ofrecer_turnos(cfg, categoria=None, cantidad=3):
+    """Próximos turnos libres para ofrecer cuando el cliente no propuso fecha: uno por día hábil, desde mañana."""
+    r = reglas(cfg)
+    minutos = duracion(r, categoria)
+    manana = (dt.datetime.now().astimezone() + dt.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    bloques = ocupado(cfg, manana, manana + dt.timedelta(days=DIAS_ALTERNATIVAS * 2))
+    opciones, desde = [], manana
+    while len(opciones) < cantidad and desde < manana + dt.timedelta(days=DIAS_ALTERNATIVAS * 2):
+        primera = alternativas(r, desde, minutos, bloques, cantidad=1)
+        if not primera:
+            break
+        opciones.append(primera[0])
+        desde = (dt.datetime.fromisoformat(primera[0]["inicio"]) + dt.timedelta(days=1)).replace(hour=0, minute=0)
+    return {"estado": "ofrecido", "categoria": categoria, "minutos": minutos, "revisadas": [],
+            "turno": None, "alternativas": opciones, "agendado": None}
+
+
 def crear_cita(cfg, inicio, fin, titulo, descripcion):
     """Crea la cita en el calendario de Zimbra con la API SOAP (CreateAppointmentRequest).
 
@@ -295,6 +361,14 @@ def instruccion_para_ia(info):
     if info.get("error"):
         return ("AGENDA: no se pudo consultar la agenda. NO confirmes ningún turno; escribí "
                 "[COMPLETAR: verificar disponibilidad en la agenda] donde corresponda.")
+    if info["estado"] == "ofrecido":
+        if not info["alternativas"]:
+            return ("AGENDA: el operador quiere ofrecer un turno, pero no hay horarios libres en los próximos días. "
+                    "No ofrezcas fechas; escribí [COMPLETAR: ofrecer fecha de turno].")
+        alts = "; ".join(a["descripcion"] for a in info["alternativas"])
+        return (f"AGENDA (consultada en el calendario de la embajada): el operador quiere OFRECER un turno. Ofrecé estos horarios libres: {alts}. "
+                "Pedile que responda con el que prefiera para confirmarlo (acá sí corresponde pedir confirmación, porque se ofrecen fechas concretas). "
+                "No menciones la duración ni la hora de finalización.")
     ESTADOS = {"libre": "libre", "ocupado": "ocupado", "fuera_de_horario": "fuera del horario de atención",
                "pasado": "fecha ya pasada", "sin_hora": "no indicó hora",
                "dia_completo": "ese día ya no tiene lugar (siempre se reserva tiempo libre en la agenda)"}

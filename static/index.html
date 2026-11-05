@@ -48,7 +48,8 @@
 
   /* Layout */
   --alto-header: 57px; --ancho-lista: 340px; --ancho-lateral: 360px;
-  --ancho-contenido: 1000px; --ancho-angosto: 680px; --ancho-progreso: 380px; --alto-progreso: 150px; --ancho-campo-corto: 110px;
+  --ancho-contenido: 1000px; --ancho-angosto: 680px; --ancho-progreso: 380px; --alto-progreso: 150px; --ancho-campo-corto: 110px; --ancho-campo-medio: 220px;
+  --ancho-agenda: 1280px; --ancho-horas: 52px; --alto-hora: 64px; --alto-cab-dia: 64px;
   --capa-header: 5; --capa-toast: 20;
 }
 @media (prefers-color-scheme: dark) {
@@ -65,6 +66,8 @@
 
 /* ===================================================================== BASE */
 * { box-sizing: border-box; }
+/* "hidden" siempre oculta: si no, reglas como "button { display: inline-flex }" le ganan y el elemento se ve */
+[hidden] { display: none !important; }
 body { margin: 0; font-family: var(--fuente); font-size: var(--fs-base); line-height: var(--lh);
   background: var(--bg); color: var(--texto); -webkit-font-smoothing: antialiased; }
 button, input, textarea, select { font: inherit; color: inherit; }
@@ -197,6 +200,8 @@ header .derecha { margin-left: auto; display: flex; align-items: center; gap: va
 .agenda.si { background: var(--ok-suave); border-color: var(--ok); }
 .agenda.no { background: var(--aviso-suave); border-color: var(--aviso); }
 .agenda > div { margin-top: var(--esp-1); }
+.ofrecer { display: inline-flex; gap: var(--esp-1); }
+.ofrecer select { width: auto; max-width: var(--ancho-campo-medio); }
 .duraciones { display: grid; grid-template-columns: minmax(0, 1fr) var(--ancho-campo-corto); gap: var(--esp-2) var(--esp-3); align-items: center; margin-top: var(--esp-2); }
 .duraciones label { margin: 0; font-weight: var(--peso-normal); font-size: var(--fs-base); }
 .nota { border-left: var(--filete-acento) solid var(--texto); padding: var(--esp-1) var(--esp-3); margin-bottom: var(--esp-3); white-space: pre-wrap; }
@@ -217,6 +222,40 @@ header .derecha { margin-left: auto; display: flex; align-items: center; gap: va
 .ejemplo .asunto { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ejemplo pre { white-space: pre-wrap; font: inherit; font-size: var(--fs-sm); color: var(--suave); margin: var(--esp-2) 0 0; max-height: 260px; overflow-y: auto; }
 .ejemplo.apagado .asunto { color: var(--suave); text-decoration: line-through; }
+
+/* ===================================================================== AGENDA */
+.contenedor.ancho { max-width: var(--ancho-agenda); }
+.ag-titulo { margin: 0 var(--esp-3); font-size: var(--fs-md); font-weight: var(--peso-fuerte); }
+.semana { display: grid; grid-template-columns: var(--ancho-horas) repeat(var(--dias-semana), minmax(0, 1fr));
+  border-top: var(--filete-fuerte) solid var(--borde-fuerte); }
+.semana .cab { padding: var(--esp-2); border-bottom: var(--filete) solid var(--borde); min-height: var(--alto-cab-dia); }
+.semana .cab b { display: block; text-transform: capitalize; }
+.semana .cab.hoy b { color: var(--acento); }
+.semana .cab .etiqueta { margin-top: var(--esp-1); }
+.horas, .columna { position: relative; height: var(--alto-grilla); }
+.horas span { position: absolute; right: var(--esp-2); transform: translateY(-50%); font-size: var(--fs-xs); color: var(--suave);
+  font-variant-numeric: tabular-nums; }
+.columna { border-left: var(--filete) solid var(--borde);
+  background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--alto-hora) - 1px), var(--borde) calc(var(--alto-hora) - 1px), var(--borde) var(--alto-hora)); }
+.columna .atencion { position: absolute; left: 0; right: 0; background: var(--acento-suave); opacity: .55; }
+.columna.no-atiende { background-color: var(--bg); }
+.cita { position: absolute; left: 2px; right: 2px; overflow: hidden; padding: 2px var(--esp-1); text-align: left;
+  min-height: 0; display: block; font-size: var(--fs-xs); font-weight: var(--peso-normal); line-height: var(--lh-ajustado);
+  background: var(--panel); border: var(--filete) solid var(--borde-control); border-left: var(--filete-acento) solid var(--texto);
+  white-space: normal; }
+.cita.dashboard { border-left-color: var(--acento); }
+.cita.libre { border-style: dashed; color: var(--suave); }
+.cita b { display: block; font-weight: var(--peso-fuerte); font-variant-numeric: tabular-nums; }
+.cita:hover { background: var(--fondo-hover); border-color: var(--texto); }
+.cita.sel { outline: var(--foco-ancho) solid var(--foco); }
+.ahora { position: absolute; left: 0; right: 0; height: 0; border-top: var(--filete-fuerte) solid var(--peligro); pointer-events: none; }
+.todo-el-dia { display: block; margin-top: var(--esp-1); font-size: var(--fs-xs); }
+.todo-el-dia .cita { position: static; width: 100%; }
+.dia-lista { border-top: var(--filete) solid var(--borde); padding: var(--esp-3) 0; }
+.dia-lista h3 { margin: 0 0 var(--esp-2); font-size: var(--fs-base); text-transform: capitalize; }
+.dia-lista .cita { position: static; margin-bottom: var(--esp-1); width: 100%; }
+@media (max-width: 760px) { .semana { display: none; } }
+@media (min-width: 761px) { .agenda-lista { display: none; } }
 
 /* ===================================================================== CONFIGURACIÓN */
 .prov { border: var(--filete) solid var(--borde); border-radius: var(--radio); padding: var(--esp-1) var(--esp-4) var(--esp-3); margin-top: var(--esp-4);
@@ -311,6 +350,7 @@ body:has(#progreso:not([hidden])) #toast { bottom: calc(var(--alto-progreso) + v
   <nav>
     <button data-vista="bandeja" class="activo">Bandeja</button>
     <button data-vista="faq">Preguntas frecuentes <span id="n-faq" class="etiqueta">0</span></button>
+    <button data-vista="agenda">Agenda</button>
     <button data-vista="aprendizaje">Aprendizaje</button>
     <button data-vista="config">Configuración</button>
   </nav>
@@ -347,6 +387,23 @@ body:has(#progreso:not([hidden])) #toast { bottom: calc(var(--alto-progreso) + v
       <input type="file" id="archivo-csv" accept=".csv,.txt" hidden>
     </div>
     <div id="lista-faq"></div>
+  </div>
+</section>
+
+<!-- ======================= AGENDA ======================= -->
+<section id="vista-agenda" class="vista">
+  <div class="contenedor ancho">
+    <div class="barra">
+      <button id="ag-anterior" aria-label="Semana anterior">← Anterior</button>
+      <button id="ag-hoy">Esta semana</button>
+      <button id="ag-siguiente" aria-label="Semana siguiente">Siguiente →</button>
+      <h2 class="ag-titulo" id="ag-titulo" aria-live="polite"></h2>
+      <button id="ag-actualizar" class="empuja-derecha" title="Volver a leer la agenda de Zimbra">Actualizar</button>
+    </div>
+    <p class="ayuda intro">Tu calendario de Zimbra. La franja sombreada es el horario de atención. Arriba de cada día figura
+      cuánto tiempo queda para dar turnos, ya descontados los minutos que siempre se reservan libres.</p>
+    <div id="ag-semana"></div>
+    <div class="tarjeta separada" id="ag-detalle" hidden></div>
   </div>
 </section>
 
@@ -596,6 +653,7 @@ function irA(vista) {
   if (vista === "faq") cargarFaqs();
   if (vista === "config") cargarConfig();
   if (vista === "aprendizaje") cargarAprendizaje();
+  if (vista === "agenda") cargarAgenda();
   if (vista === "bandeja") cargarLista();
 }
 
@@ -653,6 +711,9 @@ function agendaHtml(ag) {
   if (ag.error) return `<div class="agenda no"><b>Agenda:</b> no se pudo consultar (${esc(ag.error)}). El borrador no confirma ningún turno.</div>`;
   const pedidos = ag.revisadas.map(x => `${x.pedido ? `pidió ${esc(x.pedido)} → ` : ""}${esc(x.descripcion)}: <b>${esc(ESTADO_TURNO[x.estado] || x.estado)}</b>`).join(" · ");
   const dur = `${ag.categoria ? esc(ag.categoria) + ", " : ""}${ag.minutos} min`;
+  if (ag.estado === "ofrecido") return `<div class="agenda si"><b>Agenda:</b> turnos libres ofrecidos (${dur}):
+      ${ag.alternativas.length ? ag.alternativas.map(a => esc(a.descripcion)).join(" · ") : "no se encontraron horarios libres en los próximos días"}.
+      <div class="ayuda">Cuando el cliente responda eligiendo uno, al redactar esa respuesta se revisa de nuevo la agenda y se puede agendar.</div></div>`;
   if (ag.agendado) return `<div class="agenda si"><b>Agenda:</b> turno del ${esc(ag.turno.descripcion)} (${dur}) <b>agendado en Zimbra</b> · ${fecha(ag.agendado.fecha)}</div>`;
   if (ag.estado === "libre") return `<div class="agenda si"><b>Agenda:</b> ${pedidos} (${dur}). El borrador confirma el turno.
       <div class="acciones separada"><button class="chico primario" id="btn-agendar">Agendar en Zimbra</button>
@@ -735,6 +796,13 @@ function pintarDetalle(d) {
         <textarea id="instruccion" rows="2" aria-label="Indicaciones para la IA" placeholder="Opcional: indicaciones para este caso (ej. 'mencionar que el turno se pide por la web', 'es una urgencia')">${esc(m.instruccion)}</textarea>
         <div class="acciones separada">
           <button class="primario" id="btn-ia">${d.borrador?.autor === "ia" ? "Volver a redactar con IA" : "Redactar con IA"}</button>
+          <span class="ofrecer">
+            <button id="btn-ofrecer" title="Busca en la agenda los próximos turnos libres y redacta la respuesta ofreciéndolos">Ofrecer turno</button>
+            <select id="sel-tramite" aria-label="Trámite del turno (define la duración)">
+              <option value="">Trámite: según la plantilla</option>
+              ${(st.categorias || []).map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}
+            </select>
+          </span>
           <button class="chico" id="btn-pedir" title="Dejarlo marcado para que Claude Code lo redacte">${m.estado === "pedido" ? "Actualizar pedido a Claude Code" : "Pedir a Claude Code"}</button>
           ${m.estado === "pedido" ? `<button id="btn-cancelar-pedido" class="chico">Cancelar pedido</button>` : ""}
         </div>
@@ -796,6 +864,7 @@ function pintarDetalle(d) {
   $("#btn-a-faq").onclick = () => abrirFaq(null, { pregunta: m.asunto, respuesta: ed.value });
   $("#btn-recargar").onclick = () => abrirMail(m.id).then(() => toast("Actualizado"));
   $("#btn-ia").onclick = () => redactarIA();
+  $("#btn-ofrecer").onclick = () => redactarIA(null, { ofrecer_turno: true, categoria: $("#sel-tramite").value }, $("#btn-ofrecer"));
   $("#btn-pedir").onclick = async () => {
     await api("PATCH", "/api/mails/" + m.id, { estado: "pedido", instruccion: $("#instruccion").value });
     toast("Pedido registrado. Decile a Claude: «redactá los borradores pendientes»"); refrescar();
@@ -848,21 +917,25 @@ function pintarSugerencias(lista) {
   });
 }
 
-async function redactarIA(faqId) {
+async function redactarIA(faqId, extra = {}, boton = $("#btn-ia")) {
   const d = st.detalle, ed = $("#editor");
   if (d.borrador?.autor === "manual" && ed.value.trim() && !confirm("Esto reemplaza la respuesta que escribiste a mano. ¿Seguir?")) return;
   await guardarYa();
-  const id = d.mail.id, b = $("#btn-ia");
-  b.disabled = true; b.textContent = "Redactando…";
+  const id = d.mail.id, b = boton, textoOriginal = b.textContent;
+  document.querySelectorAll("#btn-ia, #btn-ofrecer").forEach(x => x.disabled = true);
+  b.textContent = extra.ofrecer_turno ? "Buscando turnos…" : "Redactando…";
   ed.disabled = true;
   try {
-    const nuevo = await api("POST", `/api/mails/${id}/ia`, { instruccion: $("#instruccion").value, faq_id: faqId || null });
+    const nuevo = await api("POST", `/api/mails/${id}/ia`, { instruccion: $("#instruccion").value, faq_id: faqId || null, ...extra });
     if (st.mailId === id) pintarDetalle(nuevo);
     toast("Borrador listo. Revisalo antes de copiarlo.");
     cargarEstado(); cargarLista();
   } catch (e) {
     toast(e.message, true);
-    if (st.mailId === id) { b.disabled = false; b.textContent = "Redactar con IA"; ed.disabled = false; }
+    if (st.mailId === id) {
+      document.querySelectorAll("#btn-ia, #btn-ofrecer").forEach(x => x.disabled = false);
+      b.textContent = textoOriginal; ed.disabled = false;
+    }
   }
 }
 
@@ -1040,6 +1113,96 @@ $("#archivo-csv").onchange = async e => {
   e.target.value = "";
 };
 
+/* ---------------- agenda ---------------- */
+const aMin = hhmm => { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; };
+const hora = iso => iso.slice(11, 16);
+const isoLocal = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+async function cargarAgenda(desde) {
+  if (desde !== undefined) st.agendaDesde = desde;
+  const cont = $("#ag-semana");
+  cont.innerHTML = `<p class="ayuda">Leyendo la agenda de Zimbra…</p>`;
+  $("#ag-detalle").hidden = true;
+  let s;
+  try { s = await api("GET", "/api/agenda" + (st.agendaDesde ? "?desde=" + st.agendaDesde : "")); }
+  catch (e) { cont.innerHTML = `<div class="aviso">${esc(e.message)}</div>`; $("#ag-titulo").textContent = ""; return; }
+  st.agendaDesde = s.desde;
+  st.agendaCitas = s.citas;
+  const fechaCorta = f => new Date(f + "T12:00").toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+  $("#ag-titulo").textContent = `Semana del ${fechaCorta(s.dias[0].fecha)} al ${fechaCorta(s.dias[6].fecha)}`;
+
+  const porDia = f => s.citas.filter(c => c.inicio.slice(0, 10) === f);
+  const dias = s.dias.filter(d => d.atiende || porDia(d.fecha).length);  // fin de semana solo si tiene citas
+  const conHora = s.citas.filter(c => !c.todo_el_dia);
+  const ini = Math.min(8 * 60, aMin(s.horario.desde), ...conHora.map(c => aMin(hora(c.inicio))));
+  const fin = Math.max(14 * 60, aMin(s.horario.hasta), ...conHora.map(c => c.fin.slice(0, 10) > c.inicio.slice(0, 10) ? 24 * 60 : aMin(hora(c.fin))));
+  const desdeH = Math.floor(ini / 60), hastaH = Math.ceil(fin / 60);
+  const pos = minutos => `calc(${(minutos - desdeH * 60) / 60} * var(--alto-hora))`;
+  const hoy = isoLocal(new Date());
+
+  const chip = d => !d.atiende ? `<span class="etiqueta">no se atiende</span>`
+    : `<span class="etiqueta ${d.disponibles >= 60 ? "respondido" : d.disponibles > 0 ? "borrador" : "pedido"}">${d.disponibles ? d.disponibles + " min para turnos" : "sin lugar para turnos"}</span>`;
+  const botonCita = (c, estilo = "") => `<button type="button" class="cita ${c.del_dashboard ? "dashboard" : ""} ${c.ocupa ? "" : "libre"}" data-cita="${esc(c.id)}"
+      ${estilo ? `style="${estilo}"` : ""} aria-label="${esc((c.todo_el_dia ? "Todo el día" : hora(c.inicio) + " a " + hora(c.fin)) + ": " + c.titulo)}">
+      <b>${c.todo_el_dia ? "Todo el día" : `${hora(c.inicio)}–${hora(c.fin)}`}</b>${esc(c.titulo)}</button>`;
+
+  // Columnas: citas superpuestas se reparten el ancho en carriles
+  const columna = d => {
+    const lista = porDia(d.fecha).filter(c => !c.todo_el_dia).map(c => ({ c, a: aMin(hora(c.inicio)), b: c.fin.slice(0, 10) > d.fecha ? 24 * 60 : aMin(hora(c.fin)) }))
+      .sort((x, y) => x.a - y.a);
+    let grupo = [], finGrupo = -1, html = "";
+    const cerrar = () => {
+      const carriles = [];
+      grupo.forEach(x => { let i = carriles.findIndex(f => f <= x.a); if (i < 0) { i = carriles.length; carriles.push(0); } carriles[i] = x.b; x.carril = i; });
+      grupo.forEach(x => {
+        const n = carriles.length;
+        html += botonCita(x.c, `top:${pos(x.a)};height:calc(${Math.max(x.b - x.a, 15) / 60} * var(--alto-hora) - 2px);left:calc(${x.carril} * 100% / ${n} + 2px);right:auto;width:calc(100% / ${n} - 4px)`);
+      });
+      grupo = [];
+    };
+    lista.forEach(x => { if (grupo.length && x.a >= finGrupo) cerrar(); grupo.push(x); finGrupo = Math.max(finGrupo, x.b); });
+    cerrar();
+    const atencion = d.atiende ? `<div class="atencion" style="top:${pos(aMin(s.horario.desde))};height:calc(${(aMin(s.horario.hasta) - aMin(s.horario.desde)) / 60} * var(--alto-hora))"></div>` : "";
+    const ahoraMin = new Date().getHours() * 60 + new Date().getMinutes();
+    const linea = d.fecha === hoy && ahoraMin >= desdeH * 60 && ahoraMin <= hastaH * 60 ? `<div class="ahora" style="top:${pos(ahoraMin)}" aria-hidden="true"></div>` : "";
+    return `<div class="columna ${d.atiende ? "" : "no-atiende"}">${atencion}${html}${linea}</div>`;
+  };
+  const cabecera = d => `<div class="cab ${d.fecha === hoy ? "hoy" : ""}"><b>${d.nombre} ${fechaCorta(d.fecha)}</b>${chip(d)}
+      ${porDia(d.fecha).filter(c => c.todo_el_dia).map(c => `<span class="todo-el-dia">${botonCita(c)}</span>`).join("")}</div>`;
+  const horas = Array.from({ length: hastaH - desdeH + 1 }, (_, i) => `<span style="top:calc(${i} * var(--alto-hora))">${String(desdeH + i).padStart(2, "0")}:00</span>`).join("");
+
+  cont.innerHTML = `
+    <div class="semana" style="--dias-semana:${dias.length};--alto-grilla:calc(${hastaH - desdeH} * var(--alto-hora))">
+      <div></div>${dias.map(cabecera).join("")}
+      <div class="horas" aria-hidden="true">${horas}</div>${dias.map(columna).join("")}
+    </div>
+    <div class="agenda-lista">${dias.map(d => `<div class="dia-lista"><h3>${d.nombre} ${fechaCorta(d.fecha)} ${chip(d)}</h3>
+      ${porDia(d.fecha).map(c => botonCita(c)).join("") || `<p class="ayuda">Sin citas.</p>`}</div>`).join("")}</div>
+    ${s.citas.length ? "" : `<p class="ayuda">No hay citas esta semana.</p>`}`;
+  cont.querySelectorAll("[data-cita]").forEach(b => b.onclick = () => verCita(b.dataset.cita));
+}
+
+function verCita(id) {
+  const c = st.agendaCitas.find(x => x.id === id);
+  document.querySelectorAll("[data-cita]").forEach(b => b.classList.toggle("sel", b.dataset.cita === id));
+  const det = $("#ag-detalle");
+  const dia = new Date(c.inicio).toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
+  det.innerHTML = `<h3>Cita <button class="chico" id="ag-cerrar">Cerrar</button></h3>
+    <p><b>${esc(c.titulo)}</b></p>
+    <p>${esc(dia)} · ${c.todo_el_dia ? "todo el día" : `${hora(c.inicio)} a ${hora(c.fin)}`}</p>
+    ${c.lugar ? `<p>Lugar: ${esc(c.lugar)}</p>` : ""}
+    ${c.del_dashboard ? `<p class="ayuda">Turno agendado desde el dashboard.</p>` : ""}
+    ${c.ocupa ? "" : `<p class="ayuda">Está marcada como libre o tentativa en Zimbra: no bloquea turnos.</p>`}`;
+  det.hidden = false;
+  $("#ag-cerrar").onclick = () => { det.hidden = true; document.querySelectorAll(".cita.sel").forEach(b => b.classList.remove("sel")); };
+  det.scrollIntoView({ block: "nearest" });
+}
+
+$("#ag-anterior").onclick = () => { const d = new Date(st.agendaDesde + "T12:00"); d.setDate(d.getDate() - 7); cargarAgenda(isoLocal(d)); };
+$("#ag-siguiente").onclick = () => { const d = new Date(st.agendaDesde + "T12:00"); d.setDate(d.getDate() + 7); cargarAgenda(isoLocal(d)); };
+$("#ag-hoy").onclick = () => cargarAgenda("");
+$("#ag-actualizar").onclick = () => cargarAgenda();
+
 /* ---------------- aprendizaje ---------------- */
 const pct = x => x == null ? "—" : Math.round(x * 100) + "%";
 async function cargarAprendizaje(datos) {
@@ -1193,6 +1356,8 @@ $("#btn-probar").onclick = async () => { try { await guardarConfig(); await sinc
 window.addEventListener("beforeunload", () => { if (st.guardando) guardarYa(); });
 window.addEventListener("focus", () => { if (st.vista === "bandeja" && !st.guardando) { cargarEstado(); cargarLista(); } });
 
+// Categorías de las preguntas frecuentes, para elegir el trámite (y su duración) al ofrecer un turno
+api("GET", "/api/faq").then(f => { st.categorias = [...new Set(f.map(x => x.categoria).filter(Boolean))].sort(); }).catch(() => {});
 cargarEstado(); cargarLista();
 </script>
 </body>

@@ -137,6 +137,7 @@ Tu tarea para cada correo:
 5. Seguí las REGLAS DE REDACCIÓN DEL OPERADOR (más abajo) y el tono indicado. Terminá con el cierre que indican las reglas y, si se te da una firma, agregala tal cual después (no la traduzcas ni dupliques la despedida).
    - Las plantillas son la fuente de los datos (requisitos, aranceles, plazos, links), no del estilo: si una plantilla usa fórmulas que las reglas piden evitar, reescribilas con el estilo de las reglas.
 6. TURNOS: nunca confirmes un turno, día u horario por tu cuenta. Solo confirmalo si el bloque AGENDA dice que está LIBRE o YA AGENDADO, y con exactamente ese día y esa hora. Informá solo el día y la hora (ej. "el lunes 09/11 a las 10:00"): nunca la duración ni la hora de finalización. Si la AGENDA dice que no está disponible, no lo confirmes y ofrecé las alternativas que indica.
+   - Pedile al remitente que confirme un turno SOLO si en tu respuesta le ofrecés un día y una hora concretos. Si no ofrecés ninguna fecha, no escribas ningún pedido de confirmación del turno (por ejemplo "el turno debe confirmarse dentro de las 48 hs" o "le agradeceremos la confirmación del turno"), aunque figure en la plantilla: quitalo.
 7. Si se te dan PREFERENCIAS APRENDIDAS del operador, seguilas siempre: son la forma en que el operador corrige los borradores. Si se te dan EJEMPLOS de respuestas que ya envió, imitá su estilo, estructura y nivel de detalle, pero NUNCA copies de ellos nombres, fechas, números ni datos personales; los datos oficiales salen siempre de las plantillas.
 
 FORMATO DEL TEXTO: el operador lo copia y lo pega en el webmail. Usá párrafos separados por una línea en blanco; para listas, una línea por ítem que empiece con "- "; para negrita, **así** (solo nombres de documentos, aranceles o requisitos esenciales). Nada de encabezados con # ni otro Markdown.
@@ -248,8 +249,12 @@ def completar_json(con, sistema, usuario, max_tokens=8000):
         raise ErrorIA("La IA devolvió una respuesta con un formato inesperado. Probá de nuevo o con otro modelo.")
 
 
-def redactar(con, mail_id, instruccion=None, faq_forzada=None):
-    """Genera y guarda el borrador de un mail. Devuelve el mail completo con el análisis."""
+def redactar(con, mail_id, instruccion=None, faq_forzada=None, ofrecer=False, categoria=None):
+    """Genera y guarda el borrador de un mail. Devuelve el mail completo con el análisis.
+
+    ofrecer=True: en vez de buscar en el mail una fecha propuesta, se ofrecen los próximos turnos libres
+    (con la duración de `categoria`, o la de la plantilla del borrador anterior).
+    """
     import agenda  # importaciones locales: los dos módulos usan este
     import aprendizaje
 
@@ -280,6 +285,17 @@ def redactar(con, mail_id, instruccion=None, faq_forzada=None):
         info_agenda = anterior  # ya se agendó: no se vuelve a revisar, se confirma ese turno
         usuario.append(f"AGENDA: el turno del {anterior['turno']['descripcion']} YA ESTÁ AGENDADO: confirmalo "
                        "con ese día y esa hora, sin mencionar la duración ni la hora de finalización.")
+    elif ofrecer:
+        if not categoria:  # la categoría de la plantilla que eligió la IA en el borrador anterior
+            previo = con.execute("SELECT analisis FROM borradores WHERE mail_id=?", (mail_id,)).fetchone()
+            faq_id = json.loads(previo["analisis"]).get("faq_id") if previo and previo["analisis"] else None
+            fila = con.execute("SELECT categoria FROM faq WHERE id=?", (faq_id,)).fetchone() if faq_id else None
+            categoria = fila["categoria"] if fila and fila["categoria"] else None
+        try:
+            info_agenda = agenda.ofrecer_turnos(core.leer_config(con, incluir_secretos=True), categoria)
+        except agenda.ErrorAgenda as e:
+            info_agenda = {"error": str(e)}
+        usuario.append(agenda.instruccion_para_ia(info_agenda))
     else:
         try:
             info_agenda = agenda.analizar_mail(con, mail)
@@ -298,6 +314,17 @@ def redactar(con, mail_id, instruccion=None, faq_forzada=None):
             "no copies sus nombres ni datos personales):\n\n" + "\n\n".join(
                 f"--- Ejemplo {i}\nCONSULTA: {e['consulta'][:800]}\nRESPUESTA ENVIADA:\n{e['texto_final'][:1800]}"
                 for i, e in enumerate(ejemplos, 1)))
+    # Reglas que la IA pasaba por alto cuando solo estaban en las instrucciones generales: se repiten junto al mail
+    ofrece_fecha = bool(info_agenda) and (info_agenda.get("agendado") or info_agenda.get("estado") == "libre"
+                                          or (info_agenda.get("estado") == "ofrecido" and info_agenda.get("alternativas")))
+    if not ofrece_fecha:
+        usuario.append(
+            "TURNOS: en esta respuesta NO se ofrece ninguna fecha y hora concretas para un turno. No pidas confirmación de un turno "
+            "y quitá las frases de confirmación de la plantilla (como \"EL TURNO DEBE CONFIRMARSE DENTRO DE LAS 48 HS\" o \"Le agradeceremos "
+            "la confirmación del turno\"). Tampoco dejes un espacio para completar una fecha de turno. Si el remitente pide un turno, "
+            "agregá en \"pendientes\": \"Para ofrecerle fechas, usar el botón Ofrecer turno\".")
+    usuario.append("TRATO: respondé de usted, salvo que el remitente escriba claramente de tú o de vos (en ese caso, con el mismo trato). "
+                   "No mezcles los dos.")
     requisitos = requisitos_confirmados(cfg)
     if requisitos:
         usuario.append("REQUISITOS CONFIRMADOS POR EL OPERADOR (valen como datos oficiales: si alguno corresponde a la situación "

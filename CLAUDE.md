@@ -34,6 +34,12 @@ la IA la pasaba por alto. Valen como datos oficiales, igual que las plantillas.
 - Reglas (Configuración): lunes a viernes de `agenda_desde` a `agenda_hasta`; duración por categoría de FAQ en `agenda_duraciones`
   (Poderes 60, Nacionalidad 120, el resto `agenda_duracion` = 30); al día siempre le tienen que quedar `agenda_reserva_diaria` (30) minutos libres.
 - Si está libre, la IA lo confirma; si no, ofrece alternativas. El resultado queda en `borradores.analisis.agenda`.
+- Botón "Ofrecer turno" (`ofrecer_turno` en `POST /api/mails/<id>/ia`): `agenda.ofrecer_turnos()` busca los próximos turnos libres,
+  uno por día hábil desde mañana, con la duración del trámite elegido (o de la categoría de la plantilla), y la IA los ofrece (`estado = "ofrecido"`).
+- Regla del usuario: no pedir confirmación de un turno si la respuesta no ofrece una fecha y hora concretas. Se repite junto al mail
+  (bloque "TURNOS"), porque si solo está en las instrucciones generales la IA copia las frases de confirmación de las plantillas.
+- Pestaña Agenda (`GET /api/agenda?desde=AAAA-MM-DD`): `agenda.semana()` lee las citas con título y lugar por SOAP (`SearchRequest`
+  con `calExpandInstStart/End`, que expande las citas repetidas) y calcula los minutos libres de cada día con el mismo criterio que los turnos.
 - Agendar (`POST /api/mails/<id>/agendar`) lo confirma el operador. Vuelve a revisar que esté libre y crea la cita con la API **SOAP**
   (`core.zimbra_soap` → `CreateAppointmentRequest` en la carpeta 10, "Calendar"), **sin invitados (`at`) ni organizador (`or`)**,
   para que Zimbra no le mande nada a nadie.
